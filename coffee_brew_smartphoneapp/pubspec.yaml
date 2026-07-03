@@ -1,0 +1,37 @@
+name: fcoffee_scale_app01
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.5
+  flutter_blue_plus: ^1.32.12
+  permission_handler: ^11.3.1
+
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.1.2
+  http: ^1.2.2
+  google_fonts: ^6.2.1
+  share_plus: ^10.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#221510"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+flutter:
+  uses-material-design: true

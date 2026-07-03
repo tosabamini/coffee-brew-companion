@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\issas\\\\Desktop\\\\coffee-brew-companion\\\\coffee_brew_smartphoneapp\" -Force | Select-Object Name, Mode, @{Name=\"Size\";Expression={if\\($_.PSIsContainer\\){\"<DIR>\"} else {\"{0:N0} B\" -f $_.Length}}} | Format-Table -AutoSize)",
+      "WebFetch(domain:pub.dev)",
+      "WebSearch",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:support.claude.com)",
+      "Bash(where gh *)",
+      "Bash(gh --version)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(rmdir /s /q .git)",
+      "Bash(rmdir /s /q .claude)",
+      "Bash(git remote *)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Users\\\\issas\\\\Desktop\\\\coffee-brew-companion\\\\coffee_brew_smartphoneapp\\\\.git\")",
+      "Bash(Write-Output \"removed\")"
+    ]
+  }
+}

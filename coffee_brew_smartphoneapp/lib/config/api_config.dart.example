@@ -1,0 +1,12 @@
+class ApiConfig {
+  // ---------------------------------------------------------------
+  // Anthropic API キー
+  // 取得方法: https://console.anthropic.com → API Keys → Create Key
+  // このファイルを api_config.dart にコピーしてキーを設定してください
+  // api_config.dart は .gitignore により Git 管理対象外です
+  // ---------------------------------------------------------------
+  static const String claudeApiKey = 'YOUR_API_KEY_HERE';
+
+  // 使用モデル（変更不要）
+  static const String visionModel = 'claude-haiku-4-5';
+}

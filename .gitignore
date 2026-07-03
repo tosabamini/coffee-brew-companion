@@ -1,0 +1,27 @@
+# Flutter
+coffee_brew_smartphoneapp/.dart_tool/
+coffee_brew_smartphoneapp/.flutter-plugins
+coffee_brew_smartphoneapp/.flutter-plugins-dependencies
+coffee_brew_smartphoneapp/.packages
+coffee_brew_smartphoneapp/build/
+coffee_brew_smartphoneapp/.idea/
+coffee_brew_smartphoneapp/*.iml
+
+# API Keys - 絶対にコミットしない
+coffee_brew_smartphoneapp/lib/config/api_config.dart
+
+# Android
+coffee_brew_smartphoneapp/android/.gradle/
+coffee_brew_smartphoneapp/android/local.properties
+coffee_brew_smartphoneapp/android/key.properties
+
+# iOS
+coffee_brew_smartphoneapp/ios/Pods/
+coffee_brew_smartphoneapp/ios/.symlinks/
+
+# macOS
+coffee_brew_smartphoneapp/macos/Pods/
+
+# General
+.DS_Store
+*.log
