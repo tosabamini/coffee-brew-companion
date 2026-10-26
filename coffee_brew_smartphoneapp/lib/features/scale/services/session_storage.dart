@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/bean_stock.dart';
@@ -11,6 +12,10 @@ class SessionStorage {
   static const String _sessionsFileName = 'coffee_sessions.json';
   static const String _recipeFileName = 'current_brew_recipe.json';
   static const String _recipesFileName = 'brew_recipes.json';
+
+  /// レシピ一覧・選択中レシピが保存されるたびに増える。
+  /// 別タブ（設定）で編集したレシピをホーム画面へ反映するために使う
+  static final ValueNotifier<int> recipesRevision = ValueNotifier<int>(0);
   static const String _currentRecipeIdFileName = 'current_recipe_id.txt';
   static const String _beanStocksFileName = 'bean_stocks.json';
 
@@ -92,6 +97,7 @@ class SessionStorage {
     final dir = await _getDir();
     final file = File('${dir.path}/$_recipesFileName');
     await file.writeAsString(jsonEncode(recipes.map((e) => e.toJson()).toList()));
+    recipesRevision.value++;
   }
 
   static Future<String?> loadCurrentRecipeId() async {
@@ -110,6 +116,7 @@ class SessionStorage {
     final dir = await _getDir();
     final file = File('${dir.path}/$_currentRecipeIdFileName');
     await file.writeAsString(id ?? '');
+    recipesRevision.value++;
   }
 
   static Future<BrewRecipe?> loadCurrentRecipe() async {

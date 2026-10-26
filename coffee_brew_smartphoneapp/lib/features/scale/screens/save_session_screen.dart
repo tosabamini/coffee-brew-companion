@@ -10,6 +10,7 @@ import '../models/coffee_session.dart';
 import '../models/weight_point.dart';
 import '../services/claude_vision_service.dart';
 import '../services/session_storage.dart';
+import '../widgets/rating_row.dart';
 import '../widgets/weight_graph.dart';
 
 class SaveSessionScreen extends StatefulWidget {
@@ -19,11 +20,15 @@ class SaveSessionScreen extends StatefulWidget {
   /// 計測時の豆量（ドース初期値）。メイン画面の豆量計測・レシピ由来
   final double? initialDoseG;
 
+  /// 「この条件でもう一度」で選んだ過去の記録。豆情報の初期値に使う
+  final CoffeeSession? template;
+
   const SaveSessionScreen({
     super.key,
     required this.points,
     this.recipe,
     this.initialDoseG,
+    this.template,
   });
 
   @override
@@ -118,6 +123,9 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
 
   List<FlavorNoteTag> _selectedFlavorNotes = [];
 
+  int? _rating;
+  bool _isFavorite = false;
+
   bool _isSaving = false;
   bool _isScanning = false;
   bool _useSavedPreset = false;
@@ -130,10 +138,73 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
   void initState() {
     super.initState();
     _loadPresets();
-    final initialDose = widget.initialDoseG ?? widget.recipe?.beanQuantityG;
+    final initialDose = widget.initialDoseG ??
+        widget.template?.doseG ??
+        widget.recipe?.beanQuantityG;
     if (initialDose != null && initialDose > 0) {
       _doseController.text = initialDose.toStringAsFixed(1);
     }
+    final t = widget.template;
+    if (t != null) {
+      // 前回の豆情報を引き継ぐ（メモ・TDS・評価は1杯ごとのものなので引き継がない）
+      _fillBeanFields(
+        beanName: t.beanName,
+        country: t.country,
+        regionFarm: t.regionFarm,
+        variety: t.variety,
+        process: t.process,
+        roastLevel: t.roastLevel,
+        grindSize: t.grindSize,
+        elevation: t.elevationM == null ? null : t.elevationM!.toStringAsFixed(0),
+        notes: null,
+        flavorTags: t.flavorNotes.isNotEmpty
+            ? List<FlavorNoteTag>.from(t.flavorNotes)
+            : _tagsFromOldNote(t.flavorNote ?? ''),
+      );
+    }
+  }
+
+  List<FlavorNoteTag> _tagsFromOldNote(String oldNote) {
+    return oldNote.isEmpty
+        ? <FlavorNoteTag>[]
+        : oldNote
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .map((s) => FlavorNoteTag(name: s, isCustom: true))
+            .toList();
+  }
+
+  /// 豆情報の入力欄をまとめて埋める（setState は呼び出し側で行う）
+  void _fillBeanFields({
+    String? beanName,
+    String? country,
+    String? regionFarm,
+    String? variety,
+    String? process,
+    String? roastLevel,
+    String? grindSize,
+    String? elevation,
+    String? notes,
+    required List<FlavorNoteTag> flavorTags,
+  }) {
+    final c = country ?? '';
+    final v = variety ?? '';
+    final p = process ?? '';
+    _beanController.text = beanName ?? '';
+    _selectedCountry = _normalizeDropdownValue(c, _countryOptions);
+    _countryCustomController.text = _selectedCountry == _customValue ? c : '';
+    _regionFarmController.text = regionFarm ?? '';
+    _selectedVariety = _normalizeDropdownValue(v, _varietyOptions);
+    _varietyCustomController.text = _selectedVariety == _customValue ? v : '';
+    _selectedProcess = _normalizeDropdownValue(p, _processOptions);
+    _processCustomController.text = _selectedProcess == _customValue ? p : '';
+    _selectedRoastLevel =
+        _normalizeFixedDropdownValue(roastLevel ?? '', _roastLevelOptions);
+    _grindSizeController.text = grindSize ?? '';
+    _selectedFlavorNotes = flavorTags;
+    _elevationController.text = elevation ?? '';
+    if (notes != null) _notesController.text = notes;
   }
 
   Future<void> _loadPresets() async {
@@ -396,6 +467,8 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
       tdsPercent: tdsValue,
       recipe: widget.recipe?.copy(),
       points: widget.points,
+      rating: _rating,
+      isFavorite: _isFavorite,
     );
 
     await SessionStorage.addSession(session);
@@ -813,6 +886,32 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            // この一杯の評価（任意）
+            if (!_isStandalone) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'この一杯の評価（任意）',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 6),
+                      RatingFavoriteRow(
+                        rating: _rating,
+                        isFavorite: _isFavorite,
+                        onRatingChanged: (v) => setState(() => _rating = v),
+                        onFavoriteChanged: (v) =>
+                            setState(() => _isFavorite = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Wrap(
               spacing: 12,
               runSpacing: 12,

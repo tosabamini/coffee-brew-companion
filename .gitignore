@@ -25,3 +25,10 @@ coffee_brew_smartphoneapp/macos/Pods/
 # General
 .DS_Store
 *.log
+
+# 挽き目分析の試し撮り写真（README だけ管理する）
+grind_samples/**/*.jpg
+grind_samples/**/*.jpeg
+grind_samples/**/*.png
+grind_samples/**/*.heic
+grind_samples/**/*.dng

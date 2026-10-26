@@ -10,6 +10,7 @@ import '../models/brew_recipe.dart';
 import '../models/coffee_session.dart';
 import '../services/csv_export_service.dart';
 import '../services/session_storage.dart';
+import '../widgets/rating_row.dart';
 import '../widgets/weight_graph.dart';
 
 class SessionDetailScreen extends StatefulWidget {
@@ -368,6 +369,36 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                         points: session.points,
                         recipe: session.recipe,
                       ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 評価・お気に入り（変更はすぐ保存）と「この条件でもう一度」
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RatingFavoriteRow(
+                          rating: session.rating,
+                          isFavorite: session.isFavorite,
+                          onRatingChanged: (v) async {
+                            setState(() => session.rating = v);
+                            await SessionStorage.updateSession(session);
+                          },
+                          onFavoriteChanged: (v) async {
+                            setState(() => session.isFavorite = v);
+                            await SessionStorage.updateSession(session);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton.tonalIcon(
+                          onPressed: () => Navigator.pop(context, session),
+                          icon: const Icon(Icons.replay),
+                          label: const Text('この条件でもう一度'),
+                        ),
+                      ],
                     ),
                   ),
                 ),

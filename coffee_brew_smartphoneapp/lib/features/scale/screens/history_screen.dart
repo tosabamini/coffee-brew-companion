@@ -19,6 +19,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<CoffeeSession> _sessions = [];
   bool _isLoading = true;
 
+  /// お気に入りだけ表示する
+  bool _onlyFavorites = false;
+
+  List<CoffeeSession> get _visibleSessions => _onlyFavorites
+      ? _sessions.where((s) => s.isFavorite).toList()
+      : _sessions;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +102,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: () => setState(() => _onlyFavorites = !_onlyFavorites),
+            icon: Icon(
+              _onlyFavorites ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: _onlyFavorites ? BrewColors.amber : null,
+            ),
+            tooltip: _onlyFavorites ? 'すべて表示' : 'お気に入りだけ表示',
+          ),
+          IconButton(
             onPressed: _sessions.isEmpty
                 ? null
                 : () {
@@ -118,14 +133,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _sessions.isEmpty
-              ? _buildEmptyState()
+          : _visibleSessions.isEmpty
+              ? (_onlyFavorites
+                  ? Center(
+                      child: Text(
+                        'お気に入りはまだありません',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: BrewColors.mocha,
+                            ),
+                      ),
+                    )
+                  : _buildEmptyState())
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  itemCount: _sessions.length,
+                  itemCount: _visibleSessions.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
-                    final session = _sessions[index];
+                    final session = _visibleSessions[index];
                     return FadeSlideIn(
                       delay: Duration(milliseconds: 40 * (index < 8 ? index : 8)),
                       child: _buildSessionCard(session),
@@ -172,12 +196,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () async {
-          await Navigator.push(
+          final result = await Navigator.push<CoffeeSession>(
             context,
             MaterialPageRoute(
               builder: (_) => SessionDetailScreen(sessionId: session.id),
             ),
           );
+          if (!mounted) return;
+          // 「この条件でもう一度」が押されたら、その記録をホームへ渡して戻る
+          if (result != null) {
+            Navigator.pop(context, result);
+            return;
+          }
           await _load();
         },
         child: Padding(
@@ -224,12 +254,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        if (roast != null) ...[
-                          _miniBadge(roast, BrewColors.caramel),
-                          const SizedBox(width: 6),
-                        ],
+                        if (session.isFavorite)
+                          const Icon(Icons.star_rounded,
+                              size: 16, color: BrewColors.amber),
+                        if (session.rating != null)
+                          _miniBadge(CoffeeSession.ratingLabel(session.rating!),
+                              BrewColors.sage),
+                        if (roast != null) _miniBadge(roast, BrewColors.caramel),
                         _miniBadge(
                           '${session.maxWeight.toStringAsFixed(1)} g',
                           BrewColors.mocha,

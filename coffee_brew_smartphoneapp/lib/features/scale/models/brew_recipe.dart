@@ -7,13 +7,20 @@ class BrewRecipe {
   int? targetEndSec;
   List<PourStep> steps;
 
+  /// 出典（店名・人物名・参照元など）。プリセットや、プリセットからコピーしたレシピで使う
+  String? source;
+
   BrewRecipe({
     this.id,
     this.name,
     this.beanQuantityG,
     this.targetEndSec,
     required this.steps,
+    this.source,
   });
+
+  /// アプリ内蔵のプリセット（有名店・バリスタのレシピ）かどうか。編集不可
+  bool get isPreset => id != null && id!.startsWith('preset_');
 
   bool get isEmpty {
     return (name == null || name!.trim().isEmpty) &&
@@ -60,6 +67,7 @@ class BrewRecipe {
                 targetTotalG: e.targetTotalG * ratio,
               ))
           .toList(),
+      source: source,
     );
   }
 
@@ -70,6 +78,7 @@ class BrewRecipe {
       'beanQuantityG': beanQuantityG,
       'targetEndSec': targetEndSec,
       'steps': steps.map((e) => e.toJson()).toList(),
+      if (source != null) 'source': source,
     };
   }
 
@@ -82,6 +91,7 @@ class BrewRecipe {
       steps: (json['steps'] as List? ?? [])
           .map((e) => PourStep.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
+      source: json['source'] as String?,
     );
   }
 
@@ -98,6 +108,7 @@ class BrewRecipe {
                 targetTotalG: e.targetTotalG,
               ))
           .toList(),
+      source: source,
     );
   }
 }

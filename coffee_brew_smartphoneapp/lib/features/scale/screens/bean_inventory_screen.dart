@@ -4,6 +4,7 @@ import '../../../theme/app_theme.dart';
 import '../../../theme/brew_widgets.dart';
 import '../models/bean_stock.dart';
 import '../services/session_storage.dart';
+import 'save_session_screen.dart';
 
 /// 豆の在庫・エイジング管理画面
 class BeanInventoryScreen extends StatefulWidget {
@@ -146,6 +147,20 @@ class _BeanInventoryScreenState extends State<BeanInventoryScreen> {
             color: BrewColors.espresso,
           ),
         ),
+        actions: [
+          // 豆情報（産地・品種など）の登録も「豆」タブから行えるようにする
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SaveSessionScreen(points: []),
+              ),
+            ),
+            icon: const Icon(Icons.edit_note, size: 20),
+            label: const Text('豆情報を登録'),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addOrEditStock(),

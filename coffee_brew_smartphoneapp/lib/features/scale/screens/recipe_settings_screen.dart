@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/preset_recipes.dart';
 import '../models/brew_recipe.dart';
 import '../models/pour_step.dart';
 import '../services/session_storage.dart';
@@ -24,6 +25,12 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
   List<BrewRecipe> _recipes = [];
   String? _editingId;
   bool _isSaving = false;
+
+  /// 編集中レシピの出典（コピー元から引き継ぐ）
+  String? _source;
+
+  /// 既存レシピをコピーして作成中のとき、そのコピー元の名前
+  String? _copiedFromName;
 
   @override
   void initState() {
@@ -60,9 +67,15 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
   void _loadIntoForm(BrewRecipe recipe) {
     setState(() {
       _editingId = recipe.id;
+      _source = recipe.source;
+      _copiedFromName = null;
       _nameController.text = recipe.name ?? '';
-      _beanQuantityController.text =
-          recipe.beanQuantityG == null ? '' : recipe.beanQuantityG!.toStringAsFixed(0);
+      final bean = recipe.beanQuantityG;
+      _beanQuantityController.text = bean == null
+          ? ''
+          : (bean == bean.roundToDouble()
+              ? bean.toStringAsFixed(0)
+              : bean.toStringAsFixed(1));
       _targetEndController.text =
           recipe.targetEndSec == null ? '' : _formatSec(recipe.targetEndSec!);
       for (int i = 0; i < 6; i++) {
@@ -78,9 +91,70 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
     });
   }
 
+  /// 既存レシピ（マイレシピ・プリセット）の内容をフォームに入れ、新規レシピとして編集を始める
+  void _copyIntoForm(BrewRecipe recipe) {
+    _loadIntoForm(recipe);
+    setState(() {
+      _editingId = null;
+      _copiedFromName = recipe.name ?? '無題';
+      _nameController.text = '${recipe.name ?? '無題'}（コピー）';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('「${recipe.name ?? '無題'}」をコピーしました。編集して保存してください。')),
+    );
+  }
+
+  Future<void> _pickRecipeToCopy() async {
+    final presets = PresetRecipes.all;
+    final picked = await showModalBottomSheet<BrewRecipe>(
+      context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      builder: (ctx) {
+        Widget header(String label) => Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+              child: Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            );
+        Widget tile(BrewRecipe r) => ListTile(
+              leading: Icon(r.isPreset
+                  ? Icons.storefront_outlined
+                  : Icons.menu_book_outlined),
+              title: Text(r.name ?? '無題'),
+              subtitle: r.source == null
+                  ? null
+                  : Text(r.source!, maxLines: 2, overflow: TextOverflow.ellipsis),
+              onTap: () => Navigator.pop(ctx, r),
+            );
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Text('コピーするレシピを選択',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ),
+              if (_recipes.isNotEmpty) header('マイレシピ'),
+              for (final r in _recipes) tile(r),
+              header('有名店・バリスタ'),
+              for (final r in presets) tile(r),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null && mounted) _copyIntoForm(picked);
+  }
+
   void _clearForm() {
     setState(() {
       _editingId = null;
+      _source = null;
+      _copiedFromName = null;
       _nameController.clear();
       _beanQuantityController.clear();
       _targetEndController.clear();
@@ -202,6 +276,7 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
       beanQuantityG: beanQuantityG,
       targetEndSec: targetEndSec,
       steps: steps,
+      source: _source,
     );
 
     setState(() => _isSaving = true);
@@ -292,16 +367,21 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              TextButton(
+                              IconButton(
+                                tooltip: '編集',
                                 onPressed: () => _loadIntoForm(r),
-                                child: const Text('編集'),
+                                icon: const Icon(Icons.edit_outlined),
                               ),
-                              TextButton(
+                              IconButton(
+                                tooltip: 'コピーして新規作成',
+                                onPressed: () => _copyIntoForm(r),
+                                icon: const Icon(Icons.copy_outlined),
+                              ),
+                              IconButton(
+                                tooltip: '削除',
                                 onPressed: () => _deleteRecipe(r),
-                                style: TextButton.styleFrom(
-                                    foregroundColor:
-                                        Theme.of(context).colorScheme.error),
-                                child: const Text('削除'),
+                                color: Theme.of(context).colorScheme.error,
+                                icon: const Icon(Icons.delete_outline),
                               ),
                             ],
                           ),
@@ -312,6 +392,17 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
               ),
             if (_recipes.isNotEmpty) const SizedBox(height: 12),
 
+            // 既存レシピ（マイレシピ・有名店）をコピーして作る
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _pickRecipeToCopy,
+                icon: const Icon(Icons.copy_all_outlined),
+                label: const Text('既存のレシピをコピーして作る'),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // フォーム
             Card(
               child: Padding(
@@ -320,11 +411,18 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _editingId == null
-                          ? '新規レシピ'
-                          : '編集中: ${editingName.isEmpty ? '...' : editingName}',
+                      _editingId != null
+                          ? '編集中: ${editingName.isEmpty ? '...' : editingName}'
+                          : (_copiedFromName != null
+                              ? '新規レシピ（「$_copiedFromName」をもとに作成）'
+                              : '新規レシピ'),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
+                    if (_source != null && _source!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('出典: $_source',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
                     const SizedBox(height: 12),
                     TextField(
                       controller: _nameController,
@@ -419,11 +517,11 @@ class _RecipeSettingsScreenState extends State<RecipeSettingsScreen> {
                   icon: const Icon(Icons.save),
                   label: const Text('保存'),
                 ),
-                if (_editingId != null)
+                if (_editingId != null || _copiedFromName != null)
                   OutlinedButton.icon(
                     onPressed: _clearForm,
                     icon: const Icon(Icons.add),
-                    label: const Text('新規作成'),
+                    label: const Text('0から新規作成'),
                   ),
               ],
             ),

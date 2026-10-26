@@ -50,6 +50,7 @@ ESP32 (HX711 → BLE GATT notify every ~210ms)
 | `lib/features/scale/widgets/weight_graph.dart` | Custom `CustomPainter` real-time graph (no charting library) |
 | `lib/features/scale/models/coffee_session.dart` | Main domain model with all brew metadata + weight points |
 | `lib/features/scale/models/brew_recipe.dart` | Recipe model with `id`, `scaledForBeanQuantity()` scaling logic |
+| `lib/features/scale/data/preset_recipes.dart` | 有名店・バリスタのプリセットレシピ（編集不可、JSONには保存しない） |
 | `lib/config/api_config.dart` | APIキー設定（.gitignore対象 — コミットしない） |
 | `lib/theme/app_theme.dart` | デザインシステム（BrewColorsパレット + AppTheme + ページ遷移） |
 | `lib/theme/brew_widgets.dart` | 共有ウィジェット（PulsingDot / SectionLabel / FadeSlideIn） |
@@ -80,10 +81,21 @@ No Provider/Riverpod/GetX — state is managed via:
 - `SessionStorage.loadCurrentRecipeId()` / `saveCurrentRecipeId()` — 選択中レシピIDを永続化
 - `BrewRecipe.id` — タイムスタンプベースの一意ID（例: `"1747300000000"`）
 - MainScreen: 横スクロール `ChoiceChip` でレシピを切り替え
+- **プリセット**: `PresetRecipes.all`（id は `preset_` で始まる、`BrewRecipe.isPreset`）。選択ボトムシートで「マイレシピ」「有名店・バリスタ」の2セクション表示。選択中IDはマイレシピ→プリセットの順で解決
+- `BrewRecipe.source`（nullable、後方互換）: 出典。プリセットからコピーしたマイレシピに引き継ぐ
+- RecipeSettingsScreen: 「既存のレシピをコピーして作る」/ 保存済み一覧のコピーボタンで、プリセット・マイレシピを新規レシピとして複製して編集できる（0からの作成も可）
 
 ### Bean Measurement Feature
 
 MainScreen に「豆量計測」ボタンがあり、タレ後に豆をのせて「決定」すると `_currentBeanQuantityG` が更新されレシピスケーリングに反映される。
+
+### App Navigation
+
+- `lib/app_shell.dart`（`AppShell`）: 下部 `NavigationBar`（高さ62）で「ホーム / 豆 / フレーバー / 設定」を切り替え。`IndexedStack` なのでタブ切替でBLE接続・計測は途切れない。Splash → AppShell
+- 豆タブ = `BeanInventoryScreen`（AppBarの「豆情報を登録」から `SaveSessionScreen(points: [])` へ）
+- 設定タブ = `lib/features/settings/screens/settings_screen.dart`（今はレシピ管理への入口のみ）
+- タブのルート画面では `Navigator.pop(context)` を呼ばないこと（AppShellごと閉じる）。保存後にpopする画面（SaveSessionScreen, RecipeSettingsScreen）はpushで開く
+- `SessionStorage.recipesRevision`（ValueNotifier）: レシピ保存・選択IDの保存で増え、MainScreenが購読して再読込する
 
 ### MainScreen Layout Policy
 
@@ -100,6 +112,13 @@ MainScreen に「豆量計測」ボタンがあり、タレ後に豆をのせて
 - **レシオ (RATIO)**: `_currentBeanQuantityG` と現在重量から 1:N を表示
 - **自動スタート**: 「自動」トグルでワンショット武装。直近6サンプルの最小値から **+2.0g** 増加で計測開始（スケールノイズ±0.5g対策の閾値）。`_isMeasuringBeans` 中は判定停止、発動・切断で自動解除
 - **ゴースト表示**: グラフヘッダーのレイヤーアイコンから過去セッションを選び、曲線を半透明で重ねる
+
+### Rating / Repeat / Pour Cues / Backup
+
+- `CoffeeSession.rating`（1〜3: いまいち/好き/とても好き, nullable）と `isFavorite`（後方互換）。入力UIは `widgets/rating_row.dart`。保存画面（計測時のみ）と詳細画面（即保存）。履歴は★でお気に入り絞り込み
+- 「この条件でもう一度」: 詳細画面 → `Navigator.pop(session)` → 履歴も pop で中継 → MainScreen `_applyTemplate`（レシピ・豆量・ゴーストをセット）。次の `SaveSessionScreen(template:)` で豆情報を初期入力（1回限り）
+- 注湯合図: `MainScreen._checkPourCues()`（重量ストリーム受信ごとに判定）。各ステップ開始3秒前と開始時に `HapticFeedback` + `SystemSound.click`。端末のタッチ振動/操作音設定に依存
+- バックアップ: `services/backup_service.dart`。保存フォルダ直下の .json/.txt を丸ごと1ファイルに（share_plus で共有）、復元は `file_picker` で選んで上書き。設定タブから
 
 ### Brew Analytics
 

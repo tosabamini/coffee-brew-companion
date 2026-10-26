@@ -2,17 +2,17 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../theme/app_theme.dart';
 import '../../../theme/brew_widgets.dart';
+import '../data/preset_recipes.dart';
 import '../models/brew_recipe.dart';
 import '../models/coffee_session.dart';
 import '../models/weight_point.dart';
 import '../services/ble_scale_service.dart';
 import '../services/session_storage.dart';
 import '../widgets/weight_graph.dart';
-import '../../flavor_wheel/screens/flavor_wheel_screen.dart';
-import 'bean_inventory_screen.dart';
 import 'history_screen.dart';
 import 'recipe_settings_screen.dart';
 import 'save_session_screen.dart';
@@ -37,6 +37,7 @@ class _MainScreenState extends State<MainScreen> {
   bool _isMeasuring = false;
 
   List<BrewRecipe> _recipes = [];
+  final List<BrewRecipe> _presetRecipes = PresetRecipes.all;
 
   String _connectionText = 'Disconnected';
 
@@ -61,11 +62,23 @@ class _MainScreenState extends State<MainScreen> {
   /// グラフに重ねる過去セッション（ゴースト）
   CoffeeSession? _ghostSession;
 
+  /// 「この条件でもう一度」で選んだ記録。次の保存画面で豆情報の初期値にする（1回限り）
+  CoffeeSession? _templateSession;
+
+  /// 計測中に鳴らし済みの注湯合図（同じ合図を二度鳴らさないため）
+  final Set<int> _firedCues = {};
+
   @override
   void initState() {
     super.initState();
     _loadRecipes();
+    SessionStorage.recipesRevision.addListener(_onRecipesChanged);
     _bindBleStreams();
+  }
+
+  /// 設定タブなど別の画面でレシピが保存されたら読み直す
+  void _onRecipesChanged() {
+    if (mounted) _loadRecipes();
   }
 
   void _bindBleStreams() {
@@ -91,6 +104,7 @@ class _MainScreenState extends State<MainScreen> {
       }
 
       if (_isMeasuring && _measurementStartTime != null) {
+        _checkPourCues();
         final elapsed = DateTime.now().difference(_measurementStartTime!);
         _points.add(
           WeightPoint(
@@ -132,6 +146,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    SessionStorage.recipesRevision.removeListener(_onRecipesChanged);
     _timerTick?.cancel();
     _weightSub?.cancel();
     _connectionSub?.cancel();
@@ -147,8 +162,10 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _recipes = recipes;
       if (currentId != null) {
+        // マイレシピ → プリセットの順に探す
         try {
-          _currentRecipe = recipes.firstWhere((r) => r.id == currentId);
+          _currentRecipe = [...recipes, ..._presetRecipes]
+              .firstWhere((r) => r.id == currentId);
         } catch (_) {
           _currentRecipe = null;
         }
@@ -225,6 +242,7 @@ class _MainScreenState extends State<MainScreen> {
 
     setState(() {
       _points.clear();
+      _firedCues.clear();
       _measurementStartTime = DateTime.now();
       _isMeasuring = true;
     });
@@ -256,11 +274,67 @@ class _MainScreenState extends State<MainScreen> {
           points: copiedPoints,
           recipe: recipeSnapshot,
           initialDoseG: _currentBeanQuantityG,
+          template: _templateSession,
         ),
       ),
     );
 
-    setState(() {});
+    // 引き継ぎは1回限り
+    setState(() => _templateSession = null);
+  }
+
+  /// レシピの次の注湯時刻の3秒前と、その時刻に振動＋クリック音で知らせる。
+  /// 端末の「タッチ時の振動・操作音」の設定がオフだと鳴らないことがある
+  void _checkPourCues() {
+    final recipe = _effectiveRecipe();
+    if (recipe == null || _measurementStartTime == null) return;
+    final elapsedMs =
+        DateTime.now().difference(_measurementStartTime!).inMilliseconds;
+    for (final step in recipe.steps) {
+      if (step.startSec <= 0) continue;
+      final atMs = step.startSec * 1000;
+      final preMs = atMs - 3000;
+      if (preMs > 0 &&
+          elapsedMs >= preMs &&
+          elapsedMs < atMs &&
+          _firedCues.add(step.startSec * 10 + 1)) {
+        HapticFeedback.mediumImpact();
+        SystemSound.play(SystemSoundType.click);
+      }
+      if (elapsedMs >= atMs &&
+          elapsedMs < atMs + 1500 &&
+          _firedCues.add(step.startSec * 10 + 2)) {
+        HapticFeedback.vibrate();
+        SystemSound.play(SystemSoundType.click);
+      }
+    }
+  }
+
+  /// 「この条件でもう一度」：記録のレシピ・豆量をセットし、その抽出をゴーストに重ねる
+  void _applyTemplate(CoffeeSession session) {
+    BrewRecipe? recipe;
+    final r = session.recipe;
+    if (r != null && !r.isEmpty) {
+      // 同じIDのレシピ（マイレシピ・プリセット）があればそれを、なければ記録時のレシピを使う
+      final match = [..._recipes, ..._presetRecipes]
+          .where((e) => e.id != null && e.id == r.id)
+          .toList();
+      recipe = match.isNotEmpty ? match.first : r.copy();
+    }
+    setState(() {
+      _templateSession = session;
+      if (session.points.isNotEmpty) _ghostSession = session;
+      if (recipe != null) _currentRecipe = recipe;
+      _currentBeanQuantityG =
+          session.doseG ?? recipe?.beanQuantityG ?? _currentBeanQuantityG;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '「${session.beanName ?? '前回の記録'}」の条件をセットしました（レシピ・豆量・ゴースト）',
+        ),
+      ),
+    );
   }
 
   void _tare() {
@@ -562,84 +636,21 @@ class _MainScreenState extends State<MainScreen> {
         ),
         IconButton(
           onPressed: () async {
-            await Navigator.push(
+            final result = await Navigator.push<CoffeeSession>(
               context,
               MaterialPageRoute(builder: (_) => const HistoryScreen()),
             );
-            setState(() {});
+            if (!mounted) return;
+            if (result != null) {
+              _applyTemplate(result);
+            } else {
+              setState(() {});
+            }
           },
           icon: const Icon(Icons.history, size: 22, color: BrewColors.mocha),
           tooltip: 'Saved Sessions',
         ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, size: 22, color: BrewColors.mocha),
-          color: BrewColors.foam,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          onSelected: (value) async {
-            switch (value) {
-              case 'inventory':
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const BeanInventoryScreen()),
-                );
-              case 'recipe_settings':
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const RecipeSettingsScreen()),
-                );
-                await _loadRecipes();
-              case 'bean_info':
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SaveSessionScreen(points: []),
-                  ),
-                );
-              case 'flavor_wheel':
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FlavorWheelScreen()),
-                );
-            }
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: 'inventory',
-              child: ListTile(
-                leading: Icon(Icons.inventory_2_outlined),
-                title: Text('豆の在庫'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            PopupMenuItem(
-              value: 'recipe_settings',
-              child: ListTile(
-                leading: Icon(Icons.tune),
-                title: Text('レシピ設定'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            PopupMenuItem(
-              value: 'bean_info',
-              child: ListTile(
-                leading: Icon(Icons.coffee_outlined),
-                title: Text('豆情報を登録'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            PopupMenuItem(
-              value: 'flavor_wheel',
-              child: ListTile(
-                leading: Icon(Icons.donut_large),
-                title: Text('フレーバーホイール'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ],
-        ),
+        // 豆の在庫・豆情報・フレーバーホイール・レシピ設定は下部ナビゲーションへ移動
       ],
     );
   }
@@ -801,6 +812,10 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _pickRecipe() async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       backgroundColor: BrewColors.foam,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -849,26 +864,22 @@ class _MainScreenState extends State<MainScreen> {
                         Navigator.pop(ctx);
                       },
                     ),
-                    for (final recipe in _recipes)
-                      ListTile(
-                        leading: const Icon(Icons.menu_book_outlined,
-                            size: 20, color: BrewColors.caramel),
-                        title: Text(recipe.name ?? '無題',
-                            overflow: TextOverflow.ellipsis),
-                        subtitle: Text(
-                          '豆 ${recipe.beanQuantityG?.toStringAsFixed(0) ?? "-"}g / ${recipe.steps.length}投 / 目標 ${recipe.maxTargetWeight.toStringAsFixed(0)}g',
-                          style: AppTheme.mono(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w400,
-                            color: BrewColors.mocha,
-                          ),
+                    _recipeSectionHeader('マイレシピ'),
+                    if (_recipes.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
+                        child: Text(
+                          'まだありません。「管理」から0から作るか、下のレシピをコピーして作れます。',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: BrewColors.mocha,
+                              ),
                         ),
-                        selected: _currentRecipe?.id == recipe.id,
-                        onTap: () {
-                          _selectRecipe(recipe);
-                          Navigator.pop(ctx);
-                        },
                       ),
+                    for (final recipe in _recipes) _recipeTile(ctx, recipe),
+                    _recipeSectionHeader('有名店・バリスタ'),
+                    for (final recipe in _presetRecipes)
+                      _recipeTile(ctx, recipe),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -879,10 +890,72 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _recipeSectionHeader(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: BrewColors.caramel,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+      ),
+    );
+  }
+
+  Widget _recipeTile(BuildContext sheetContext, BrewRecipe recipe) {
+    final bean = recipe.beanQuantityG;
+    final beanText = bean == null
+        ? '-'
+        : (bean == bean.roundToDouble()
+            ? bean.toStringAsFixed(0)
+            : bean.toStringAsFixed(1));
+    final summary =
+        '豆 ${beanText}g / ${recipe.steps.length}投 / 目標 ${recipe.maxTargetWeight.toStringAsFixed(0)}g';
+    return ListTile(
+      leading: Icon(
+          recipe.isPreset ? Icons.storefront_outlined : Icons.menu_book_outlined,
+          size: 20,
+          color: BrewColors.caramel),
+      title: Text(recipe.name ?? '無題', overflow: TextOverflow.ellipsis),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            summary,
+            style: AppTheme.mono(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w400,
+              color: BrewColors.mocha,
+            ),
+          ),
+          if (recipe.source != null && recipe.source!.isNotEmpty)
+            Text(
+              recipe.source!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: BrewColors.mocha.withValues(alpha: 0.8),
+                  ),
+            ),
+        ],
+      ),
+      isThreeLine: recipe.source != null && recipe.source!.isNotEmpty,
+      selected: _currentRecipe?.id == recipe.id,
+      onTap: () {
+        _selectRecipe(recipe);
+        Navigator.pop(sheetContext);
+      },
+    );
+  }
+
   // --- 豆量ステッパー（コンパクト） ---
   Widget _buildBeanQuantityStepper() {
+    final q = _currentBeanQuantityG ?? _currentRecipe!.beanQuantityG!;
     final quantity =
-        (_currentBeanQuantityG ?? _currentRecipe!.beanQuantityG!).toStringAsFixed(0);
+        q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(1);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
       decoration: BoxDecoration(

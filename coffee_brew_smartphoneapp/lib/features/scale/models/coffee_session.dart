@@ -26,6 +26,12 @@ class CoffeeSession {
   BrewRecipe? recipe;
   final List<WeightPoint> points;
 
+  /// 1杯の評価（1=いまいち / 2=好き / 3=とても好き）。未評価は null
+  int? rating;
+
+  /// お気に入りの目印
+  bool isFavorite;
+
   /// 複数選択フレーバーノート（新形式）。空の場合は flavorNote（旧形式）を使用。
   List<FlavorNoteTag> flavorNotes;
 
@@ -47,7 +53,23 @@ class CoffeeSession {
     this.tdsPercent,
     this.recipe,
     List<FlavorNoteTag>? flavorNotes,
+    this.rating,
+    this.isFavorite = false,
   }) : flavorNotes = flavorNotes ?? [];
+
+  /// 評価の表示名
+  static String ratingLabel(int rating) {
+    switch (rating) {
+      case 1:
+        return 'いまいち';
+      case 2:
+        return '好き';
+      case 3:
+        return 'とても好き';
+      default:
+        return '';
+    }
+  }
 
   /// 粉1gあたりに保持される液体量の近似値（g/g）。ペーパードリップの一般値
   static const double liquidRetainedRatio = 2.0;
@@ -107,6 +129,8 @@ class CoffeeSession {
       'recipe': recipe?.toJson(),
       'points': points.map((e) => e.toJson()).toList(),
       'flavorNotes': flavorNotes.map((e) => e.toJson()).toList(),
+      'rating': rating,
+      'isFavorite': isFavorite,
     };
   }
 
@@ -137,6 +161,8 @@ class CoffeeSession {
                   FlavorNoteTag.fromJson(Map<String, dynamic>.from(e)))
               .toList() ??
           [],
+      rating: (json['rating'] as num?)?.toInt(),
+      isFavorite: json['isFavorite'] as bool? ?? false,
     );
   }
 }
