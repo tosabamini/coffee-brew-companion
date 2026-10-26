@@ -1,0 +1,247 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>ホルダー組み合わせ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+
+
+<style>
+/* layout: workbench — live 3D model on the left (sticky), parts drawer with 本体/持ち手 tabs on the right; stacks on phones */
+:root{
+  --bg:#eceeea; --paper:#ffffff; --ink:#1d1f1c; --muted:#62675f; --line:#d4d8d0;
+  --copper:#a8592c; --copper-ink:#ffffff; --chip:#e0e4dc; --stage:#f6f6f3;
+  --display:"Dela Gothic One","Zen Kaku Gothic New",system-ui,sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151714; --paper:#1f221e; --ink:#e7e9e3; --muted:#a2a89e; --line:#323630;
+  --copper:#e08a55; --copper-ink:#1a0f08; --chip:#2a2e28; --stage:#262a25; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151714; --paper:#1f221e; --ink:#e7e9e3; --muted:#a2a89e; --line:#323630;
+  --copper:#e08a55; --copper-ink:#1a0f08; --chip:#2a2e28; --stage:#262a25; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 32px}
+.wrap{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:8px 24px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(22px,3vw,32px);margin:0;line-height:1.2}
+header p{margin:4px 0 0;color:var(--muted);max-width:66ch}
+header nav{display:flex;gap:16px;flex-wrap:wrap}
+header a{color:var(--copper);font-weight:700;text-decoration:none}
+header a:hover{text-decoration:underline}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:14px;align-items:start}
+@media (max-width:960px){.main{grid-template-columns:minmax(0,1fr)}}
+.viewer{position:sticky;top:12px;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+@media (max-width:960px){.viewer{position:static}}
+#stage{position:relative;height:min(62vh,600px);min-height:300px;background:var(--stage)}
+#stage canvas{display:block;width:100%;height:100%}
+#stage .hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted)}
+#busy{position:absolute;right:12px;top:10px;font-size:12px;color:var(--copper);font-family:var(--mono)}
+.picked{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-top:1px solid var(--line)}
+.picked div{background:var(--paper);padding:10px 14px;min-width:0}
+.picked small{display:block;color:var(--muted);font-size:11px;letter-spacing:.08em}
+.picked b{display:block;line-height:1.35}
+.picked .no{font-family:var(--mono);color:var(--copper);font-size:12px;margin-right:6px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.stat{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stat b{color:var(--ink);font-family:var(--mono)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--copper)}
+.btn.primary{background:var(--copper);border-color:var(--copper);color:var(--copper-ink);font-weight:700;font-size:14px}
+.btn:disabled{opacity:.6;cursor:progress}
+button:focus-visible,input:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+#msg{font-size:12px;color:var(--muted);padding:0 14px 12px;margin:0;min-height:1em}
+.drawer{background:var(--paper);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0;max-height:calc(100vh - 40px);position:sticky;top:12px}
+@media (max-width:960px){.drawer{position:static;max-height:none}}
+.tabs{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:transparent;color:var(--muted);padding:12px;font:inherit;font-weight:700;cursor:pointer;border-bottom:3px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--copper)}
+.tools{padding:10px 12px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
+input[type=search]{font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);width:100%}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.chip{flex:none;border:0;background:var(--chip);color:var(--ink);border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--copper);color:var(--copper-ink);font-weight:700}
+.list{overflow:auto;padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));grid-auto-rows:max-content;gap:8px;align-content:start;min-height:0;flex:1}
+@media (max-width:960px){.list{max-height:70vh}}
+.item{border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:0 0 6px;cursor:pointer;text-align:left;font:inherit;color:var(--ink);display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.item .thumb{display:block;width:100%;aspect-ratio:1;background-color:#fff;background-repeat:no-repeat}
+.item span{font-size:11.5px;line-height:1.3;padding:0 6px}
+.item .no{font-family:var(--mono);color:var(--copper);font-size:11px}
+.item[aria-pressed="true"]{border-color:var(--copper);box-shadow:0 0 0 2px var(--copper)}
+.note{font-size:12px;color:var(--muted);margin:0}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div>
+    <h1>ホルダー組み合わせ</h1>
+    <p>本体（柄164案と無地）と持ち手（形130案）を自由に組み合わせて、3Dで確かめてから1つのSTLとして保存できます。寸法は試作でぴったりだったものと同じです。</p>
+  </div>
+  <nav><a href="https://claude.ai/artifact/Ej9MvANa5mMUTQwQBXyFyF" target="_blank" rel="noopener">柄の124案</a><a href="https://claude.ai/artifact/FpYGj3GTsXLcnAYL3zo4Fj" target="_blank" rel="noopener">持ち手の115案</a><a href="../画像から作る/index.html" target="_blank" rel="noopener">自分の画像で作る</a></nav>
+</header>
+<div class="main">
+  <section class="viewer" aria-label="プレビュー">
+    <div id="stage"><span id="busy"></span><span class="hint">ドラッグで回転・ホイールで拡大</span></div>
+    <div class="picked">
+      <div><small>本体</small><b><span class="no" id="pbno"></span><span id="pb"></span></b></div>
+      <div><small>持ち手</small><b><span class="no" id="phno"></span><span id="ph"></span></b></div>
+    </div>
+    <div class="bar">
+      <span class="stat">体積 約<b id="svol">–</b> cm³ ／ 約<b id="sg">–</b> g（PLA）</span>
+      <span class="spacer"></span>
+      <button class="btn" id="rand">おまかせ</button>
+      <button class="btn primary" id="save">STLを保存（.zip）</button>
+    </div>
+    <p id="msg"></p>
+  </section>
+  <section class="drawer" aria-label="部品を選ぶ">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-b" aria-selected="true">本体を選ぶ</button>
+      <button role="tab" id="tab-h" aria-selected="false">持ち手を選ぶ</button>
+    </div>
+    <div class="tools">
+      <input type="search" id="q" placeholder="名前で探す" aria-label="名前で探す">
+      <div class="chips" id="cats"></div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+</div>
+<p class="note">保存されるSTLは本体と持ち手を結合した1つの立体です。持ち手は形を優先しているため、多くの組み合わせで印刷にサポート材が必要です。重さは中身を詰めた場合の目安です。</p>
+</div>
+
+<script src="../lib/fflate.js"></script><script src="../lib/three.min.js"></script><script src="../lib/OrbitControls.js"></script><script src="../lib/manifold.js"></script><script src="../lib/manifold_wasm.js"></script>
+<script>window.DATA=/*DATA*/;</script>
+<script>
+(async function(){
+if(THREE.ColorManagement) THREE.ColorManagement.legacyMode=false;
+const OrbitControls=THREE.OrbitControls;
+const __localDL={save:async({filename,data})=>{const u=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:'saved'};}};
+const $=id=>document.getElementById(id), pad=i=>String(i).padStart(3,'0');
+const {b:BODIES,h:HANDLES}=window.DATA;
+let sel={b:1,h:1}, tab='b', cat='すべて';
+try{ const s=JSON.parse(localStorage.getItem('combo-sel')||'null'); if(s&&BODIES.some(x=>x.i===s.b)&&HANDLES.some(x=>x.i===s.h)) sel=s; }catch(e){}
+{ const m=/^#?b(\d+)h(\d+)$/.exec(location.hash||''); if(m){ const b=+m[1],h=+m[2]; if(BODIES.some(x=>x.i===b)&&HANDLES.some(x=>x.i===h)) sel={b,h}; } }
+
+// ---------- drawer ----------
+function src(){ return tab==='b'?BODIES:HANDLES; }
+function setTab(t){ tab=t; cat='すべて'; $('q').value=''; $('tab-b').setAttribute('aria-selected',t==='b'); $('tab-h').setAttribute('aria-selected',t==='h'); drawChips(); drawList(); }
+$('tab-b').onclick=()=>setTab('b'); $('tab-h').onclick=()=>setTab('h'); $('q').oninput=drawList;
+function drawChips(){
+  const c=$('cats'); c.textContent='';
+  for(const name of ['すべて',...new Set(src().map(d=>d.c))]){
+    const b=document.createElement('button'); b.className='chip'; b.textContent=name; b.setAttribute('aria-pressed',name===cat);
+    b.onclick=()=>{cat=name; drawChips(); drawList();}; c.appendChild(b);
+  }
+}
+function drawList(){
+  const q=$('q').value.trim().toLowerCase(), L=$('list'); L.textContent='';
+  const items=src().filter(d=>(cat==='すべて'||d.c===cat)&&(!q||(d.jp+d.c).toLowerCase().includes(q)||String(d.i)===q));
+  for(const d of items){
+    const b=document.createElement('button'); b.className='item'; b.setAttribute('aria-pressed',sel[tab]===d.i);
+    const rows=tab==='b'?11:9, col=d.i%16, row=Math.floor(d.i/16);
+    b.innerHTML=`<span class="thumb" style="background-image:url(sprite_${tab}.webp);background-size:1600% ${rows*100}%;background-position:${col/15*100}% ${row/(rows-1)*100}%"></span><span class="no">${tab==='b'?'B':'H'}${pad(d.i)}</span><span></span>`;
+    b.lastChild.textContent=d.jp; b.setAttribute('aria-label',d.jp);
+    b.onclick=()=>{ sel[tab]=d.i; L.querySelectorAll('.item').forEach(x=>x.setAttribute('aria-pressed',x===b)); update(); };
+    L.appendChild(b);
+  }
+}
+
+// ---------- mesh loading ----------
+const cache=new Map();
+function load(kind,i){
+  const key=kind+i; if(cache.has(key)) return cache.get(key);
+  const p=(async()=>{
+    const b64=await new Promise((res,rej)=>{ const id=kind+pad(i); window.__parts=window.__parts||{}; if(window.__parts[id]) return res(window.__parts[id]);
+      const s=document.createElement('script'); s.src=`parts/${id}.js`; s.onload=()=>{ res(window.__parts[id]); s.remove(); delete window.__parts[id]; }; s.onerror=()=>rej(new Error('part '+id)); document.head.appendChild(s); });
+    const raw=fflate.unzlibSync(Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));
+    const dv=new DataView(raw.buffer,raw.byteOffset,raw.byteLength), nv=dv.getUint32(0,true), nf=dv.getUint32(4,true), o=raw.byteOffset+8;
+    const qd=new Int32Array(raw.buffer.slice(o,o+nv*12)), fd=new Int32Array(raw.buffer.slice(o+nv*12,o+nv*12+nf*12));
+    const pos=new Float32Array(nv*3); let x=0,y=0,z=0;
+    for(let k=0;k<nv;k++){ x+=qd[3*k]; y+=qd[3*k+1]; z+=qd[3*k+2]; pos[3*k]=x*0.002; pos[3*k+1]=y*0.002; pos[3*k+2]=z*0.002; }
+    const idx=new Uint32Array(nf*3); let a=0; for(let k=0;k<nf*3;k++){ a+=fd[k]; idx[k]=a; }
+    return {pos,idx};
+  })();
+  cache.set(key,p); p.catch(()=>cache.delete(key)); return p;
+}
+
+// ---------- three ----------
+const stage=$('stage'); const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true}); renderer.physicallyCorrectLights=true; renderer.outputEncoding=THREE.sRGBEncoding; renderer.setPixelRatio(Math.min(2,devicePixelRatio)); stage.prepend(renderer.domElement);
+const scene=new THREE.Scene(), cam=new THREE.PerspectiveCamera(30,1,1,2000); cam.position.set(150,95,175);
+const ctl=new OrbitControls(cam,renderer.domElement); ctl.target.set(14,38,0); ctl.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x6b5a50,1.3)); const l1=new THREE.DirectionalLight(0xffffff,1.7); l1.position.set(120,200,90); scene.add(l1);
+const l2=new THREE.DirectionalLight(0xffffff,0.5); l2.position.set(-150,40,-120); scene.add(l2);
+const root=new THREE.Group(); root.rotation.x=-Math.PI/2; scene.add(root);
+const matB=new THREE.MeshStandardMaterial({color:0xc06a38,roughness:0.6}), matH=new THREE.MeshStandardMaterial({color:0xb8602e,roughness:0.5});
+const meshes={b:null,h:null};
+function place(kind,m){
+  if(meshes[kind]){ root.remove(meshes[kind]); meshes[kind].geometry.dispose(); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(m.pos,3)); g.setIndex(new THREE.BufferAttribute(m.idx,1)); g.computeVertexNormals();
+  meshes[kind]=new THREE.Mesh(g,kind==='b'?matB:matH); root.add(meshes[kind]);
+}
+let fitted=false;
+function resize(){ const w=stage.clientWidth,h=stage.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/h;
+  if(!fitted){ const d=cam.aspect<1?320:Math.max(210,250/Math.min(cam.aspect,1.6)); const dir=cam.position.clone().sub(ctl.target).normalize(); cam.position.copy(ctl.target).addScaledVector(dir,d); fitted=true; }
+  cam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(stage); resize();
+(function loop(){ ctl.update(); renderer.render(scene,cam); requestAnimationFrame(loop); })();
+
+// ---------- selection ----------
+let token=0;
+async function update(){
+  const B=BODIES.find(x=>x.i===sel.b), H=HANDLES.find(x=>x.i===sel.h);
+  $('pbno').textContent='B'+pad(B.i); $('pb').textContent=B.jp; $('phno').textContent='H'+pad(H.i); $('ph').textContent=H.jp;
+  const v=B.v+H.v; $('svol').textContent=v.toFixed(1); $('sg').textContent=Math.round(v*1.24);
+  try{ localStorage.setItem('combo-sel',JSON.stringify(sel)); }catch(e){}
+  const my=++token; $('busy').textContent='読み込み中…'; $('msg').textContent='';
+  try{
+    const [mb,mh]=await Promise.all([load('b',sel.b),load('h',sel.h)]); if(my!==token) return;
+    place('b',mb); place('h',mh); $('busy').textContent='';
+  }catch(e){ if(my===token){ $('busy').textContent=''; $('msg').textContent='部品を読み込めませんでした。少し待ってからもう一度選んでください。'; } }
+}
+$('rand').onclick=()=>{ sel={b:BODIES[1+Math.floor(Math.random()*(BODIES.length-1))].i,h:HANDLES[Math.floor(Math.random()*HANDLES.length)].i}; drawList(); update(); };
+
+// ---------- export ----------
+let wasmP=null;
+const getManifold=()=>wasmP||(wasmP=(async()=>{ const bin=Uint8Array.from(atob(window.MANIFOLD_WASM_B64),c=>c.charCodeAt(0));
+  const w=await window.ManifoldModule({wasmBinary:bin}); w.setup(); return w; })());
+let dlP=null; const getDL=()=>dlP||(dlP=(window.claude?.use?window.claude.use('downloads').then(d=>d||__localDL):Promise.resolve(__localDL)));
+function toSTL(pos,idx,zs){
+  const nt=idx.length/3, buf=new ArrayBuffer(84+nt*50), dv=new DataView(buf);
+  const h='paper cup holder combo'; for(let i=0;i<h.length;i++) dv.setUint8(i,h.charCodeAt(i)); dv.setUint32(80,nt,true); let o=84;
+  for(let t=0;t<nt;t++){ const a=idx[3*t]*3,b=idx[3*t+1]*3,c=idx[3*t+2]*3;
+    const ux=pos[b]-pos[a],uy=pos[b+1]-pos[a+1],uz=pos[b+2]-pos[a+2],vx=pos[c]-pos[a],vy=pos[c+1]-pos[a+1],vz=pos[c+2]-pos[a+2];
+    let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx; const l=Math.hypot(nx,ny,nz)||1;
+    dv.setFloat32(o,nx/l,true);dv.setFloat32(o+4,ny/l,true);dv.setFloat32(o+8,nz/l,true);o+=12;
+    for(const q of [a,b,c]){dv.setFloat32(o,pos[q],true);dv.setFloat32(o+4,pos[q+1],true);dv.setFloat32(o+8,pos[q+2]-zs,true);o+=12;}
+    dv.setUint16(o,0,true);o+=2; }
+  return new Uint8Array(buf);
+}
+$('save').onclick=async e=>{
+  const btn=e.currentTarget, msg=$('msg'); btn.disabled=true; btn.textContent='結合しています…'; msg.textContent='';
+  try{
+    const dl=await getDL(); if(!dl){ msg.textContent='この表示ではファイルを保存できません。claude.ai でこのページを開いてください。'; return; }
+    const [mb,mh]=await Promise.all([load('b',sel.b),load('h',sel.h)]);
+    let pos,idx,note='';
+    try{ const w=await getManifold();
+      const A=new w.Manifold(new w.Mesh({numProp:3,vertProperties:mb.pos,triVerts:mb.idx})), B=new w.Manifold(new w.Mesh({numProp:3,vertProperties:mh.pos,triVerts:mh.idx}));
+      const Um=A.add(B); const m=Um.getMesh(); pos=m.vertProperties.slice(); idx=m.triVerts.slice(); A.delete(); B.delete(); Um.delete();
+    }catch(err){
+      const nv=mb.pos.length/3; pos=new Float32Array(mb.pos.length+mh.pos.length); pos.set(mb.pos); pos.set(mh.pos,mb.pos.length);
+      idx=new Uint32Array(mb.idx.length+mh.idx.length); idx.set(mb.idx); for(let i=0;i<mh.idx.length;i++) idx[mb.idx.length+i]=mh.idx[i]+nv;
+      note='（結合エンジンを読み込めなかったため、本体と持ち手を重ねたまま保存しました。スライサーで一体になります）';
+    }
+    let zs=1e9; for(let i=2;i<pos.length;i+=3) zs=Math.min(zs,pos[i]);
+    const name=`holder_B${pad(sel.b)}_H${pad(sel.h)}`;
+    const zip=fflate.zipSync({[name+'.stl']:toSTL(pos,idx,zs)},{level:6});
+    await dl.save({filename:name+'.zip',data:new Blob([zip])}); msg.textContent=`${name}.zip を保存しました。`+note;
+  }catch(err){ msg.textContent= err?.code==='declined'?'保存をキャンセルしました。':'保存できませんでした（'+(err?.code||err?.message||'エラー')+'）。'; }
+  finally{ btn.disabled=false; btn.textContent='STLを保存（.zip）'; }
+};
+getManifold().catch(()=>{});
+drawChips(); drawList(); update();
+})();
+</script>
+
+</body></html>

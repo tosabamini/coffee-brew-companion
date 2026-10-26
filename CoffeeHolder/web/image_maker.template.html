@@ -1,0 +1,347 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>画像から紙コップホルダー</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+
+
+<style>
+/* layout: workbench — controls rail on the left, unwrapped sleeve map + 3D view on the right; stacks on phones */
+:root{
+  --bg:#eef1f1; --panel:#ffffff; --ink:#16202a; --muted:#5b6871; --line:#d3dadc;
+  --accent:#0e7c7b; --accent-ink:#ffffff; --hole:#1d2a33; --warn:#b5531b; --map-solid:#cfe3e1;
+  --display:"Dela Gothic One","Zen Kaku Gothic New",system-ui,sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11181d; --panel:#182229; --ink:#e4ecee; --muted:#9aa9b1; --line:#2b3a43;
+  --accent:#3fb7b2; --accent-ink:#0b1417; --hole:#05090c; --warn:#f08a4b; --map-solid:#2c5552; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11181d; --panel:#182229; --ink:#e4ecee; --muted:#9aa9b1; --line:#2b3a43;
+  --accent:#3fb7b2; --accent-ink:#0b1417; --hole:#05090c; --warn:#f08a4b; --map-solid:#2c5552; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(22px,3vw,30px);margin:0;letter-spacing:.02em;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:62ch}
+.grid{display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:880px){.grid{grid-template-columns:minmax(0,1fr)} .view{order:-1} #three{height:min(52vh,420px)}}
+.rail{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:100%}
+.seg button{flex:1;border:0;background:transparent;color:var(--ink);padding:7px 4px;font:inherit;font-size:13px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+button.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer}
+button.btn:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700;font-size:15px;padding:11px 14px;width:100%}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:center;cursor:pointer}
+.drop.over{border-color:var(--accent)}
+.drop canvas{width:72px;height:72px;object-fit:contain;border-radius:6px;background:var(--bg);flex:none}
+.drop small{color:var(--muted);display:block}
+label.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:13px}
+label.sl input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+label.sl output{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+label.ck{display:flex;gap:8px;align-items:center;font-size:13px}
+label.ck input{accent-color:var(--accent)}
+select{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);width:100%}
+.view{display:flex;flex-direction:column;gap:14px;min-width:0}
+#three{position:relative;height:min(62vh,560px);min-height:320px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+#three canvas{display:block}
+#three .tag{position:absolute;left:12px;top:10px;font-size:12px;color:var(--muted)}
+#busy{position:absolute;right:12px;top:10px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+.mapbox{overflow-x:auto}
+#map{width:100%;min-width:560px;image-rendering:pixelated;border-radius:6px;display:block;background:var(--bg)}
+.maplegend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.stat{border-top:2px solid var(--line);padding-top:6px}
+.stat b{display:block;font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+#warn{color:var(--warn);font-size:13px;margin:0}
+#msg{font-size:13px;color:var(--muted);margin:0;min-height:1.6em}
+.note{font-size:12px;color:var(--muted);margin:0}
+.hidden{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>画像から紙コップホルダー</h1>
+  <p>画像の明るさを読み取り、穴（透かし）や凹凸（浮き彫り）にしてホルダーの側面に巻き付けます。寸法は試作でぴったりだった形のままです。</p>
+</header>
+<div class="grid">
+<div class="rail">
+  <section class="card">
+    <h2>画像</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="画像を選ぶ">
+      <canvas id="thumb" width="144" height="144"></canvas>
+      <div><b>画像を選ぶ・ドロップ・貼り付け</b><small id="imgname">サンプル：波と月</small></div>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="row" id="samples"></div>
+  </section>
+
+  <section class="card">
+    <h2>読み取り方</h2>
+    <div class="seg" id="mode">
+      <button data-v="cut">透かし</button><button data-v="relief">浮き彫り</button><button data-v="both">両方</button>
+    </div>
+    <p class="note" id="modenote"></p>
+    <label class="sl" id="thrRow">しきい値（これより暗いと穴）<output id="o_threshold"></output><input type="range" id="threshold" min="0.05" max="0.95" step="0.01"></label>
+    <label class="sl" id="depRow">凹凸の高さ<output id="o_depth"></output><input type="range" id="depth" min="0.2" max="2.5" step="0.1"></label>
+    <label class="sl">コントラスト<output id="o_contrast"></output><input type="range" id="contrast" min="0.3" max="3" step="0.05"></label>
+    <label class="sl">明るさ<output id="o_brightness"></output><input type="range" id="brightness" min="-0.5" max="0.5" step="0.01"></label>
+    <label class="sl">ぼかし（ノイズ除去）<output id="o_blur"></output><input type="range" id="blur" min="0" max="6" step="0.5"></label>
+    <label class="ck"><input type="checkbox" id="invert">明暗を反転する</label>
+  </section>
+
+  <section class="card">
+    <h2>配置</h2>
+    <div class="seg" id="layout"><button data-v="wrap">全周に巻く</button><button data-v="panel">正面に1枚</button></div>
+    <div class="seg" id="fit"><button data-v="repeat">繰り返し</button><button data-v="single">1枚</button><button data-v="stretch">引き伸ばし</button></div>
+    <div id="panelOpts" class="card" style="padding:0;border:0;gap:10px">
+      <div class="seg" id="hand"><button data-v="left">左手で持つ</button><button data-v="right">右手で持つ</button></div>
+      <label class="sl">位置（持ち手から）<output id="o_center"></output><input type="range" id="center" min="20" max="340" step="1"></label>
+      <label class="sl">パネル幅<output id="o_panelWidth"></output><input type="range" id="panelWidth" min="30" max="178" step="1"></label>
+    </div>
+    <label class="sl">大きさ<output id="o_scale"></output><input type="range" id="scale" min="0.2" max="1.5" step="0.01"></label>
+    <label class="ck"><input type="checkbox" id="mirror">左右反転</label>
+    <label class="ck"><input type="checkbox" id="fullHeight">上下の帯まで使う（縁を細くする）</label>
+  </section>
+
+  <section class="card">
+    <h2>強度と仕上げ</h2>
+    <label class="sl">壁の厚さ<output id="o_base"></output><input type="range" id="base" min="0.8" max="2.4" step="0.1"></label>
+    <label class="sl">最小の桟の幅<output id="o_bar"></output><input type="range" id="bar" min="0.8" max="3" step="0.1"></label>
+    <label class="sl">穴のふちの盛り上げ<output id="o_rimHeight"></output><input type="range" id="rimHeight" min="0" max="2" step="0.1"></label>
+    <label class="ck"><input type="checkbox" id="bridge">浮いた部分を細い桟でつなぐ</label>
+    <label class="ck"><input type="checkbox" id="smooth">凹凸をなめらかにする</label>
+    <label class="sl">細かさ<output id="o_cell"></output><select id="cell"><option value="0.5">粗い（0.5 mm・速い）</option><option value="0.4">標準（0.4 mm）</option><option value="0.3">細かい（0.3 mm・重い）</option></select></label>
+  </section>
+
+  <section class="card">
+    <h2>持ち手</h2>
+    <select id="handle"></select>
+    <label class="ck"><input type="checkbox" id="ghost">紙コップを表示</label>
+  </section>
+</div>
+
+<div class="view">
+  <div id="three"><span class="tag">ドラッグで回転・ホイールで拡大</span><span id="busy"></span></div>
+  <section class="card">
+    <h2>展開図（持ち手は左右の端）</h2>
+    <div class="mapbox"><canvas id="map"></canvas></div>
+    <div class="maplegend"><span>◀ 持ち手</span><span>持ち手の反対側</span><span>持ち手 ▶</span></div>
+  </section>
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><b id="s_vol">–</b><span>体積 cm³</span></div>
+      <div class="stat"><b id="s_g">–</b><span>重さ g（PLA）</span></div>
+      <div class="stat"><b id="s_open">–</b><span>開口率</span></div>
+      <div class="stat"><b id="s_br">–</b><span>補強した桟</span></div>
+      <div class="stat"><b id="s_tri">–</b><span>三角形</span></div>
+    </div>
+    <p id="warn"></p>
+    <button class="primary" id="export">STLを書き出す（.zip）</button>
+    <p id="msg"></p>
+    <p class="note">ホルダーは立てた向きのまま印刷できます。内径は紙コップに合わせて 0.35 mm のすき間を取ってあります。</p>
+  </section>
+</div>
+</div>
+</div>
+
+<script src="../lib/fflate.js"></script><script src="../lib/three.min.js"></script><script src="../lib/OrbitControls.js"></script><script src="../lib/manifold.js"></script><script src="../lib/manifold_wasm.js"></script>
+<script>
+/*CORE*/
+</script>
+<script>
+window.HANDLES=/*HANDLES*/;
+
+</script>
+<script>
+(async function(){
+if(THREE.ColorManagement) THREE.ColorManagement.legacyMode=false;
+const OrbitControls=THREE.OrbitControls;
+const __localDL={save:async({filename,data})=>{const u=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return {status:'saved'};}};
+
+const $ = id => document.getElementById(id);
+const P = { mode:'both', layout:'wrap', fit:'repeat', hand:'left', center:90, panelWidth:90, scale:1, mirror:false, fullHeight:false,
+  invert:false, contrast:1.2, brightness:0, blur:1, threshold:0.45, depth:1.8, base:1.5, bar:1.2, minHole:1.0, rimWidth:0.8, rimHeight:0.8,
+  frame:1.6, bridge:true, smooth:true, cell:'0.4', handle:0, ghost:true };
+try { const s = JSON.parse(localStorage.getItem('cupholder-settings-v2')||'null'); if (s) Object.assign(P, s); } catch(e) {}
+const fmt = { threshold:v=>(+v).toFixed(2), depth:v=>(+v).toFixed(1)+' mm', contrast:v=>'×'+(+v).toFixed(2), brightness:v=>(v>0?'+':'')+(+v).toFixed(2),
+  blur:v=>(+v).toFixed(1)+' px', center:v=>v+'°', panelWidth:v=>v+' mm', scale:v=>Math.round(v*100)+'%', base:v=>(+v).toFixed(1)+' mm', bar:v=>(+v).toFixed(1)+' mm',
+  rimHeight:v=>(+v).toFixed(1)+' mm' };
+const notes = { cut:'暗いところが穴になります。軽く、光が抜けます。', relief:'暗いところほど外へ盛り上がります。穴は開きません。', both:'暗いところは穴、中間の明るさは凹凸になります。' };
+
+// ---------- image handling ----------
+let IMG = null, srcCanvas = null;
+function lumFrom(canvas){
+  const blur = +P.blur, maxW = 900; const sc = Math.min(1, maxW/Math.max(canvas.width, canvas.height));
+  const w = Math.max(8, Math.round(canvas.width*sc)), h = Math.max(8, Math.round(canvas.height*sc));
+  const c = document.createElement('canvas'); c.width=w; c.height=h; const x = c.getContext('2d');
+  x.fillStyle='#fff'; x.fillRect(0,0,w,h); if (blur>0) x.filter=`blur(${blur}px)`; x.drawImage(canvas,0,0,w,h);
+  const d = x.getImageData(0,0,w,h).data, data = new Float32Array(w*h);
+  for (let i=0;i<w*h;i++) data[i]=(0.2126*d[4*i]+0.7152*d[4*i+1]+0.0722*d[4*i+2])/255;
+  return { w, h, data };
+}
+function setSource(canvas, name){
+  srcCanvas = canvas; $('imgname').textContent = name;
+  const t = $('thumb').getContext('2d'); t.clearRect(0,0,144,144);
+  const s = Math.min(144/canvas.width, 144/canvas.height); t.drawImage(canvas,(144-canvas.width*s)/2,(144-canvas.height*s)/2,canvas.width*s,canvas.height*s);
+  IMG = lumFrom(canvas); schedule();
+}
+function loadFile(f){
+  if (!f || !f.type.startsWith('image/')) { $('msg').textContent='画像ファイル（PNG・JPEG・SVG など）を選んでください。'; return; }
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => { const c=document.createElement('canvas'); c.width=im.naturalWidth||800; c.height=im.naturalHeight||800; c.getContext('2d').drawImage(im,0,0,c.width,c.height); URL.revokeObjectURL(url); setSource(c, f.name||'貼り付けた画像'); };
+  im.onerror = () => $('msg').textContent='この画像は読み込めませんでした。別の形式で試してください。';
+  im.src = url;
+}
+$('drop').onclick = () => $('file').click();
+$('drop').onkeydown = e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); $('file').click(); } };
+$('file').onchange = e => loadFile(e.target.files[0]);
+['dragover','dragenter'].forEach(t=>$('drop').addEventListener(t,e=>{e.preventDefault();$('drop').classList.add('over');}));
+['dragleave','drop'].forEach(t=>$('drop').addEventListener(t,e=>{e.preventDefault();$('drop').classList.remove('over');}));
+$('drop').addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+window.addEventListener('paste', e => { for (const it of e.clipboardData.items) if (it.type.startsWith('image/')) { loadFile(it.getAsFile()); break; } });
+
+// built-in samples, drawn on canvas
+const SAMPLES = {
+  '波と月': (c,x) => { c.width=900; c.height=600; x.fillStyle='#fff'; x.fillRect(0,0,900,600);
+    x.fillStyle='#000'; x.beginPath(); x.arc(660,175,120,0,7); x.fill(); x.fillStyle='#fff'; x.beginPath(); x.arc(718,140,108,0,7); x.fill();
+    const star=(cx,cy,r)=>{ x.beginPath(); for(let k=0;k<10;k++){ const a=-Math.PI/2+k*Math.PI/5, rr=k%2?r*0.45:r; x.lineTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a)); } x.closePath(); x.fill(); };
+    x.fillStyle='#000'; [[120,90,34],[300,150,26],[420,60,22],[200,200,18],[830,80,24],[520,190,20]].forEach(s=>star(...s));
+    const R=110, dx=220;
+    for (let row=0; row<6; row++) for (let k=-1; k<6; k++) { const cx=k*dx+(row%2?dx/2:0), cy=330+row*R*0.55;
+      x.fillStyle='#fff'; x.beginPath(); x.arc(cx,cy,R,Math.PI,0); x.fill();
+      x.strokeStyle='#8c8c8c'; x.lineWidth=22; for (const r of [R-12,R-52,R-92]) { x.beginPath(); x.arc(cx,cy,Math.max(r,4),Math.PI,0); x.stroke(); } }
+  },
+  'ロゴ文字': (c,x) => { c.width=1000; c.height=420; x.fillStyle='#fff'; x.fillRect(0,0,1000,420);
+    x.fillStyle='#000'; x.font='900 230px Georgia, "Times New Roman", serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('Café',500,215);
+    x.font='700 50px "Zen Kaku Gothic New", sans-serif'; x.fillStyle='#555'; x.fillText('★  HOT COFFEE  ★',500,375); },
+  '地形（浮き彫り向き）': (c,x) => { c.width=800; c.height=500; const g=x.createImageData(800,500);
+    for (let y=0;y<500;y++) for (let i=0;i<800;i++){ const v=0.5+0.22*Math.sin(i/37+Math.sin(y/53)*2)+0.18*Math.cos(y/29+i/91)+0.1*Math.sin((i+y)/13);
+      const q=Math.round(v*10)/10; const b=Math.max(0,Math.min(255,q*255)); const o=4*(y*800+i); g.data[o]=g.data[o+1]=g.data[o+2]=b; g.data[o+3]=255; }
+    x.putImageData(g,0,0); },
+};
+for (const name of Object.keys(SAMPLES)) { const b=document.createElement('button'); b.className='btn'; b.textContent=name;
+  b.onclick=()=>{ const c=document.createElement('canvas'); SAMPLES[name](c,c.getContext('2d')); if(name.startsWith('地形')){ setSeg('mode','relief'); } setSource(c,'サンプル：'+name); };
+  $('samples').appendChild(b); }
+
+// ---------- controls ----------
+function save(){ try { localStorage.setItem('cupholder-settings-v2', JSON.stringify(P)); } catch(e) {} }
+function setSeg(id, v){ P[id]=v; document.querySelectorAll(`#${id} button`).forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===v)); syncVis(); }
+for (const id of ['mode','layout','fit','hand']) document.querySelectorAll(`#${id} button`).forEach(b=>b.onclick=()=>{
+  setSeg(id,b.dataset.v);
+  if (id==='hand') { P.center = b.dataset.v==='left' ? 90 : 270; $('center').value=P.center; $('o_center').textContent=fmt.center(P.center); }
+  schedule(); });
+for (const id of ['threshold','depth','contrast','brightness','blur','center','panelWidth','scale','base','bar','rimHeight']) {
+  const el=$(id); el.value=P[id]; $('o_'+id).textContent=fmt[id](P[id]);
+  el.oninput=()=>{ P[id]=+el.value; $('o_'+id).textContent=fmt[id](P[id]); if (id==='blur' && srcCanvas) IMG=lumFrom(srcCanvas); schedule(); };
+}
+for (const id of ['invert','mirror','fullHeight','bridge','smooth','ghost']) { const el=$(id); el.checked=!!P[id]; el.onchange=()=>{ P[id]=el.checked; if(id==='ghost'){ ghost.visible=P.ghost; save(); } else schedule(); }; }
+$('cell').value=P.cell; $('cell').onchange=()=>{ P.cell=$('cell').value; schedule(); };
+HANDLES.forEach((h,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=`${h.jp}（${h.vol.toFixed(1)} cm³）`; $('handle').appendChild(o); });
+$('handle').value=P.handle; $('handle').onchange=()=>{ P.handle=+$('handle').value; setHandle(); schedule(); };
+function syncVis(){
+  $('modenote').textContent = notes[P.mode];
+  $('thrRow').classList.toggle('hidden', P.mode==='relief');
+  $('depRow').classList.toggle('hidden', P.mode==='cut');
+  $('panelOpts').classList.toggle('hidden', P.layout!=='panel');
+}
+['mode','layout','fit','hand'].forEach(id=>setSeg(id,P[id]));
+
+// ---------- three.js ----------
+const host=$('three');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true}); renderer.physicallyCorrectLights=true; renderer.outputEncoding=THREE.sRGBEncoding; renderer.setPixelRatio(Math.min(2,devicePixelRatio)); host.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); const cam=new THREE.PerspectiveCamera(32,1,1,2000); cam.position.set(150,95,170);
+const ctl=new OrbitControls(cam,renderer.domElement); ctl.target.set(8,40,0); ctl.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x5a6a70,1.4)); const dl=new THREE.DirectionalLight(0xffffff,1.6); dl.position.set(120,200,90); scene.add(dl);
+const dl2=new THREE.DirectionalLight(0xffffff,0.5); dl2.position.set(-150,40,-120); scene.add(dl2);
+const root=new THREE.Group(); root.rotation.x=-Math.PI/2; scene.add(root);
+const mat=new THREE.MeshStandardMaterial({color:0x2a9d97,roughness:0.55,metalness:0.0,side:THREE.DoubleSide});
+// cup ghost (lathe)
+const prof=[]; for (let z=0; z<=78; z+=2) prof.push(new THREE.Vector2(25.17+0.1065*z - 0.15, z)); prof.push(new THREE.Vector2(36,79.5),new THREE.Vector2(35,80.5),new THREE.Vector2(33.5,80));
+const ghost=new THREE.Mesh(new THREE.LatheGeometry(prof,96), new THREE.MeshStandardMaterial({color:0xf2efe8,transparent:true,opacity:0.32,roughness:0.9,depthWrite:false,side:THREE.DoubleSide}));
+ghost.rotation.x=Math.PI/2; ghost.position.z=-3.3; ghost.visible=P.ghost; root.add(ghost);
+let shellMesh=null, handleMesh=null, handleData=null;
+function decode(h){ const v=new Float32Array(Uint8Array.from(atob(h.v),c=>c.charCodeAt(0)).buffer), f=new Uint32Array(Uint8Array.from(atob(h.f),c=>c.charCodeAt(0)).buffer); return {v,f}; }
+function setHandle(){ handleData=decode(HANDLES[P.handle]); if(handleMesh){root.remove(handleMesh); handleMesh.geometry.dispose();}
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(handleData.v,3)); g.setIndex(new THREE.BufferAttribute(handleData.f,1)); g.computeVertexNormals();
+  handleMesh=new THREE.Mesh(g,mat); root.add(handleMesh); }
+setHandle();
+function resize(){ const w=host.clientWidth,h=host.clientHeight; renderer.setSize(w,h); cam.aspect=w/h; const d=w/h<1?310:240; cam.position.setLength(d); cam.position.add(new THREE.Vector3(0,0,0)); cam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(host); resize();
+(function loop(){ ctl.update(); renderer.render(scene,cam); requestAnimationFrame(loop); })();
+
+// ---------- build ----------
+let CUR=null, timer=null;
+function schedule(){ save(); clearTimeout(timer); $('busy').textContent='計算中…'; timer=setTimeout(rebuild, 180); }
+function rebuild(){
+  if (!IMG) return;
+  const p={...P}; const g=makeGrid(+P.cell); const win=windowMask(g,p); const L=sampleImage(g,win,IMG,p);
+  const r=process(g,win,L,p); const m=buildMesh(g,r.H,r.T);
+  CUR={g,win,r,m};
+  if (shellMesh){ root.remove(shellMesh); shellMesh.geometry.dispose(); }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(m.pos,3)); geo.setIndex(new THREE.BufferAttribute(m.idx,1));
+  geo.computeVertexNormals(); shellMesh=new THREE.Mesh(geo,mat); root.add(shellMesh);
+  drawMap(g,win,r);
+  const vol=(meshVolume(m.pos,m.idx)+ (HANDLES[P.handle].vol*1000))/1000;
+  $('s_vol').textContent=vol.toFixed(1); $('s_g').textContent=(vol*1.24).toFixed(0);
+  $('s_open').textContent=(p.mode==='relief'?0:Math.round(r.stats.open*100))+'%';
+  $('s_br').textContent=r.stats.bridges??0; $('s_tri').textContent=(m.idx.length/3/1000).toFixed(0)+'k';
+  const w=[]; if (r.stats.open>0.72 && p.mode!=='relief') w.push('穴が多く、強度が足りないかもしれません。しきい値を下げるか桟を太くしてください。');
+  if (r.stats.removedIslands>0) w.push(`つながっていない部分（${Math.round(r.stats.removedIslands*g.ds*g.dz)} mm²）を取り除きました。`);
+  if (p.base<1.2) w.push('壁が 1.2 mm 未満です。割れやすくなります。');
+  $('warn').textContent=w.join(' ');
+  $('busy').textContent='';
+}
+function drawMap(g,win,r){
+  const c=$('map'); c.width=g.N; c.height=g.M; const x=c.getContext('2d'); const im=x.createImageData(g.N,g.M);
+  const cs=getComputedStyle(document.documentElement); const hex=s=>{s=s.trim().replace('#','');return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16));};
+  const hole=hex(cs.getPropertyValue('--hole')), sol=hex(cs.getPropertyValue('--map-solid')), acc=hex(cs.getPropertyValue('--accent'));
+  let tmax=0; for (const t of r.T) tmax=Math.max(tmax,t);
+  for (let i=0;i<g.M;i++) for (let j=0;j<g.N;j++){ const k=i*g.N+j, o=4*((g.M-1-i)*g.N+j); let col;
+    if (r.H[k]) col=hole; else { const f=Math.min(1,(r.T[k]-P.base)/Math.max(0.3,tmax-P.base)); col=sol.map((v,q)=>v+(acc[q]-v)*f*0.9);
+      if(!win.W[k]) col=col.map(v=>v*0.86); }
+    im.data[o]=col[0]; im.data[o+1]=col[1]; im.data[o+2]=col[2]; im.data[o+3]=255; }
+  x.putImageData(im,0,0); c.style.aspectRatio=`${g.N} / ${g.M}`;
+}
+
+// ---------- export ----------
+let wasmP=null;
+function getManifold(){ if(!wasmP) wasmP=(async()=>{ const bin=Uint8Array.from(atob(window.MANIFOLD_WASM_B64),c=>c.charCodeAt(0));
+  const w=await window.ManifoldModule({wasmBinary:bin}); w.setup(); return w; })(); return wasmP; }
+getManifold().catch(()=>{});
+$('export').onclick=async()=>{
+  if(!CUR) return; const msg=$('msg'); msg.textContent='持ち手と結合しています…';
+  let pos,idx,note='';
+  try { const w=await getManifold();
+    const a=new w.Manifold(new w.Mesh({numProp:3,vertProperties:CUR.m.pos,triVerts:CUR.m.idx}));
+    const b=new w.Manifold(new w.Mesh({numProp:3,vertProperties:handleData.v,triVerts:handleData.f}));
+    const u=a.add(b); const mm=u.getMesh(); pos=mm.vertProperties; idx=mm.triVerts; note='1つの閉じた立体として書き出しました。';
+  } catch(e){
+    const nv=CUR.m.pos.length/3; pos=new Float32Array(CUR.m.pos.length+handleData.v.length); pos.set(CUR.m.pos); pos.set(handleData.v,CUR.m.pos.length);
+    idx=new Uint32Array(CUR.m.idx.length+handleData.f.length); idx.set(CUR.m.idx); for(let i=0;i<handleData.f.length;i++) idx[CUR.m.idx.length+i]=handleData.f[i]+nv;
+    note='結合エンジンを読み込めなかったため、本体と持ち手を重ねたまま書き出しました（スライサーで自動的に一体化されます）。';
+  }
+  let zmin=1e9; for(let i=2;i<pos.length;i+=3) zmin=Math.min(zmin,pos[i]);
+  const stl=new Uint8Array(toSTL(pos,idx,zmin)); const name=`cup_holder_${P.mode}_${Date.now().toString(36)}`;
+  const zip=fflate.zipSync({[name+'.stl']:stl},{level:6});
+  const dl=(window.claude?.use ? await window.claude.use('downloads') : null)||__localDL;
+  if(!dl){ msg.textContent='この表示ではファイルを保存できません。claude.ai でこのページを開いてください。'; return; }
+  try { await dl.save({filename:name+'.zip',data:new Blob([zip])}); msg.textContent='保存しました。'+note; }
+  catch(e){ msg.textContent = e?.code==='declined' ? '保存をキャンセルしました。' : '保存できませんでした（'+(e?.code||'不明なエラー')+'）。'; }
+};
+
+// start with a sample
+{ const c=document.createElement('canvas'); SAMPLES['波と月'](c,c.getContext('2d')); setSource(c,'サンプル：波と月'); }
+})();
+</script>
+
+</body></html>

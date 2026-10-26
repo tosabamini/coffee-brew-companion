@@ -1,0 +1,6 @@
+# 生成物（python build.py で作り直せる）
+build/
+dist/
+__pycache__/
+*.pyc
+_to_delete/

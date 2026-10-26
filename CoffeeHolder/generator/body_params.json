@@ -1,0 +1,658 @@
+{
+"1": {
+"vfix": 0,
+"fins": true
+},
+"2": {
+"vfix": 0,
+"fins": true
+},
+"3": {
+"vfix": 0,
+"fins": true
+},
+"4": {
+"vfix": 0,
+"fins": true
+},
+"5": {
+"vfix": 1,
+"fins": true
+},
+"6": {
+"vfix": 0,
+"fins": true
+},
+"7": {
+"vfix": 0,
+"fins": true
+},
+"8": {
+"vfix": 0,
+"fins": true
+},
+"9": {
+"vfix": 1,
+"fins": true
+},
+"10": {
+"vfix": 0,
+"fins": true
+},
+"11": {
+"vfix": 0,
+"fins": true
+},
+"12": {
+"vfix": 0,
+"fins": true
+},
+"13": {
+"vfix": 0,
+"fins": true
+},
+"14": {
+"vfix": 0,
+"fins": true
+},
+"15": {
+"vfix": 0,
+"fins": true
+},
+"16": {
+"vfix": 0,
+"fins": true
+},
+"17": {
+"vfix": 0,
+"fins": true
+},
+"18": {
+"vfix": 0,
+"fins": true
+},
+"19": {
+"vfix": 0,
+"fins": true
+},
+"20": {
+"vfix": 0,
+"fins": true
+},
+"21": {
+"vfix": 1,
+"fins": true
+},
+"22": {
+"vfix": 0,
+"fins": true
+},
+"23": {
+"vfix": 0,
+"fins": true
+},
+"24": {
+"vfix": 0,
+"fins": true
+},
+"25": {
+"vfix": 0,
+"fins": true
+},
+"26": {
+"vfix": 0,
+"fins": true
+},
+"27": {
+"vfix": 0,
+"fins": true
+},
+"28": {
+"vfix": 0,
+"fins": true
+},
+"29": {
+"vfix": 0,
+"fins": true
+},
+"30": {
+"vfix": 0,
+"fins": true
+},
+"31": {
+"vfix": 0,
+"fins": true
+},
+"32": {
+"vfix": 0,
+"fins": true
+},
+"33": {
+"vfix": 0,
+"fins": true
+},
+"34": {
+"vfix": 0,
+"fins": true
+},
+"35": {
+"vfix": 0,
+"fins": true
+},
+"36": {
+"vfix": 1,
+"fins": true
+},
+"37": {
+"vfix": 0,
+"fins": true
+},
+"38": {
+"vfix": 0,
+"fins": true
+},
+"39": {
+"vfix": 0,
+"fins": true
+},
+"40": {
+"vfix": 0,
+"fins": true
+},
+"41": {
+"vfix": 0,
+"fins": true
+},
+"42": {
+"vfix": 0,
+"fins": true
+},
+"43": {
+"vfix": 1,
+"fins": true
+},
+"44": {
+"vfix": 0,
+"fins": true
+},
+"45": {
+"vfix": 0,
+"fins": true
+},
+"46": {
+"vfix": 0,
+"fins": true
+},
+"47": {
+"vfix": 0,
+"fins": true
+},
+"48": {
+"vfix": 0,
+"fins": true
+},
+"49": {
+"vfix": 0,
+"fins": true
+},
+"50": {
+"vfix": 0,
+"fins": true
+},
+"51": {
+"vfix": 0,
+"fins": true
+},
+"52": {
+"vfix": 0,
+"fins": true
+},
+"53": {
+"vfix": 0,
+"fins": true
+},
+"54": {
+"vfix": 1,
+"fins": true
+},
+"55": {
+"vfix": 0,
+"fins": true
+},
+"56": {
+"vfix": 0,
+"fins": true
+},
+"57": {
+"vfix": 1,
+"fins": true
+},
+"58": {
+"vfix": 0,
+"fins": true
+},
+"59": {
+"vfix": 0,
+"fins": true
+},
+"60": {
+"vfix": 0,
+"fins": true
+},
+"61": {
+"vfix": 0,
+"fins": true
+},
+"62": {
+"vfix": 0,
+"fins": true
+},
+"63": {
+"vfix": 0,
+"fins": true
+},
+"64": {
+"vfix": 0,
+"fins": true
+},
+"65": {
+"vfix": 0,
+"fins": true
+},
+"66": {
+"vfix": 0,
+"fins": true
+},
+"67": {
+"vfix": 0,
+"fins": true
+},
+"68": {
+"vfix": 0,
+"fins": true
+},
+"69": {
+"vfix": 0,
+"fins": true
+},
+"70": {
+"vfix": 0,
+"fins": true
+},
+"71": {
+"vfix": 0,
+"fins": true
+},
+"72": {
+"vfix": 0,
+"fins": true
+},
+"73": {
+"vfix": 0,
+"fins": true
+},
+"74": {
+"vfix": 0,
+"fins": true
+},
+"75": {
+"vfix": 0,
+"fins": true
+},
+"76": {
+"vfix": 1,
+"fins": false
+},
+"77": {
+"vfix": 0,
+"fins": true
+},
+"78": {
+"vfix": 0,
+"fins": true
+},
+"79": {
+"vfix": 0,
+"fins": true
+},
+"80": {
+"vfix": 0,
+"fins": true
+},
+"81": {
+"vfix": 0,
+"fins": true
+},
+"82": {
+"vfix": 0,
+"fins": true
+},
+"83": {
+"vfix": 0,
+"fins": true
+},
+"84": {
+"vfix": 0,
+"fins": true
+},
+"85": {
+"vfix": 0,
+"fins": true
+},
+"86": {
+"vfix": 0,
+"fins": true
+},
+"87": {
+"vfix": 0,
+"fins": true
+},
+"88": {
+"vfix": 0,
+"fins": true
+},
+"89": {
+"vfix": 0,
+"fins": true
+},
+"90": {
+"vfix": 0,
+"fins": true
+},
+"91": {
+"vfix": 0,
+"fins": true
+},
+"92": {
+"vfix": 0,
+"fins": true
+},
+"93": {
+"vfix": 0,
+"fins": true
+},
+"94": {
+"vfix": 0,
+"fins": true
+},
+"95": {
+"vfix": 0,
+"fins": true
+},
+"96": {
+"vfix": 0,
+"fins": true
+},
+"97": {
+"vfix": 0,
+"fins": true
+},
+"98": {
+"vfix": 0,
+"fins": true
+},
+"99": {
+"vfix": 0,
+"fins": true
+},
+"100": {
+"vfix": 0,
+"fins": true
+},
+"101": {
+"vfix": 0,
+"fins": true
+},
+"102": {
+"vfix": 0,
+"fins": true
+},
+"103": {
+"vfix": 0,
+"fins": true
+},
+"104": {
+"vfix": 1,
+"fins": true
+},
+"105": {
+"vfix": 0,
+"fins": true
+},
+"106": {
+"vfix": 0,
+"fins": true
+},
+"107": {
+"vfix": 0,
+"fins": true
+},
+"108": {
+"vfix": 0,
+"fins": true
+},
+"109": {
+"vfix": 0,
+"fins": true
+},
+"110": {
+"vfix": 0,
+"fins": true
+},
+"111": {
+"vfix": 1,
+"fins": true
+},
+"112": {
+"vfix": 0,
+"fins": true
+},
+"113": {
+"vfix": 0,
+"fins": true
+},
+"114": {
+"vfix": 0,
+"fins": true
+},
+"115": {
+"vfix": 0,
+"fins": true
+},
+"116": {
+"vfix": 1,
+"fins": true
+},
+"117": {
+"vfix": 0,
+"fins": true
+},
+"118": {
+"vfix": 0,
+"fins": true
+},
+"119": {
+"vfix": 0,
+"fins": true
+},
+"120": {
+"vfix": 0,
+"fins": true
+},
+"121": {
+"vfix": 0,
+"fins": true
+},
+"122": {
+"vfix": 0,
+"fins": true
+},
+"123": {
+"vfix": 0,
+"fins": true
+},
+"124": {
+"vfix": 0,
+"fins": true
+},
+"125": {
+"vfix": 0,
+"fins": true
+},
+"126": {
+"vfix": 0,
+"fins": true
+},
+"127": {
+"vfix": 0,
+"fins": true
+},
+"128": {
+"vfix": 1,
+"fins": true
+},
+"129": {
+"vfix": 0,
+"fins": true
+},
+"130": {
+"vfix": 0,
+"fins": true
+},
+"131": {
+"vfix": 0,
+"fins": true
+},
+"132": {
+"vfix": 0,
+"fins": true
+},
+"133": {
+"vfix": 0,
+"fins": true
+},
+"134": {
+"vfix": 0,
+"fins": true
+},
+"135": {
+"vfix": 0,
+"fins": true
+},
+"136": {
+"vfix": 0,
+"fins": true
+},
+"137": {
+"vfix": 1,
+"fins": true
+},
+"138": {
+"vfix": 0,
+"fins": true
+},
+"139": {
+"vfix": 0,
+"fins": true
+},
+"140": {
+"vfix": 1,
+"fins": true
+},
+"141": {
+"vfix": 0,
+"fins": true
+},
+"142": {
+"vfix": 0,
+"fins": true
+},
+"143": {
+"vfix": 0,
+"fins": true
+},
+"144": {
+"vfix": 1,
+"fins": true
+},
+"145": {
+"vfix": 0,
+"fins": true
+},
+"146": {
+"vfix": 0,
+"fins": true
+},
+"147": {
+"vfix": 0,
+"fins": true
+},
+"148": {
+"vfix": 0,
+"fins": true
+},
+"149": {
+"vfix": 0,
+"fins": true
+},
+"150": {
+"vfix": 0,
+"fins": true
+},
+"151": {
+"vfix": 0,
+"fins": true
+},
+"152": {
+"vfix": 0,
+"fins": true
+},
+"153": {
+"vfix": 1,
+"fins": true
+},
+"154": {
+"vfix": 0,
+"fins": true
+},
+"155": {
+"vfix": 0,
+"fins": true
+},
+"156": {
+"vfix": 0,
+"fins": true
+},
+"157": {
+"vfix": 0,
+"fins": true
+},
+"158": {
+"vfix": 0,
+"fins": true
+},
+"159": {
+"vfix": 0,
+"fins": true
+},
+"160": {
+"vfix": 0,
+"fins": true
+},
+"161": {
+"vfix": 0,
+"fins": true
+},
+"162": {
+"vfix": 0,
+"fins": true
+},
+"163": {
+"vfix": 0,
+"fins": true
+},
+"164": {
+"vfix": 0,
+"fins": true
+}
+}
