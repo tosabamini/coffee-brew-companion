@@ -65,6 +65,21 @@ select{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);b
 #msg{font-size:13px;color:var(--muted);margin:0;min-height:1.6em}
 .note{font-size:12px;color:var(--muted);margin:0}
 .hidden{display:none!important}
+.cf-head{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.cf-badge{font-size:11px;border-radius:999px;padding:1px 8px;background:var(--line);color:var(--ink)}
+.cf-badge.base{background:var(--accent);color:var(--accent-ink)}
+.cf-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cf-grid label{display:flex;flex-direction:column;font-size:13px;gap:2px}
+.cf-grid small{color:var(--muted);font-size:11px}
+.cf-grid span{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+.cf-grid input{width:100%;min-width:0;font:inherit;font-family:var(--mono);padding:5px 6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.cf-sl{display:grid;grid-template-columns:1fr auto auto;gap:2px 8px;font-size:13px;align-items:center}
+.cf-sl input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.cf-sl output{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.cf-auto{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;font:inherit;font-size:11px;padding:1px 6px;cursor:pointer}
+.cf-warn{color:var(--warn);font-size:12px;margin:0}
+.cf-warn:empty{display:none}
+.cf-tip{color:var(--muted);font-size:12px;margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -75,6 +90,7 @@ select{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);b
 </header>
 <div class="grid">
 <div class="rail">
+  <section class="card" id="cupfit"></section>
   <section class="card">
     <h2>画像</h2>
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="画像を選ぶ">
@@ -148,13 +164,16 @@ select{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);b
     <p id="warn"></p>
     <button class="primary" id="export">STLを書き出す（.zip）</button>
     <p id="msg"></p>
-    <p class="note">ホルダーは立てた向きのまま印刷できます。内径は紙コップに合わせて 0.35 mm のすき間を取ってあります。</p>
+    <p class="note" id="fitnote">ホルダーは立てた向きのまま印刷できます。内径は紙コップに合わせて 0.35 mm のすき間を取ってあります。</p>
   </section>
 </div>
 </div>
 </div>
 
 <script src="../lib/fflate.js"></script><script src="../lib/three.min.js"></script><script src="../lib/OrbitControls.js"></script><script src="../lib/manifold.js"></script><script src="../lib/manifold_wasm.js"></script>
+<script>
+/*CUPFIT*/
+</script>
 <script>
 /*CORE*/
 </script>
@@ -266,15 +285,25 @@ const dl2=new THREE.DirectionalLight(0xffffff,0.5); dl2.position.set(-150,40,-12
 const root=new THREE.Group(); root.rotation.x=-Math.PI/2; scene.add(root);
 const mat=new THREE.MeshStandardMaterial({color:0x2a9d97,roughness:0.55,metalness:0.0,side:THREE.DoubleSide});
 // cup ghost (lathe)
-const prof=[]; for (let z=0; z<=78; z+=2) prof.push(new THREE.Vector2(25.17+0.1065*z - 0.15, z)); prof.push(new THREE.Vector2(36,79.5),new THREE.Vector2(35,80.5),new THREE.Vector2(33.5,80));
-const ghost=new THREE.Mesh(new THREE.LatheGeometry(prof,96), new THREE.MeshStandardMaterial({color:0xf2efe8,transparent:true,opacity:0.32,roughness:0.9,depthWrite:false,side:THREE.DoubleSide}));
-ghost.rotation.x=Math.PI/2; ghost.position.z=-3.3; ghost.visible=P.ghost; root.add(ghost);
+// 紙コップのサイズ（変えると本体はそのサイズで作り直し、持ち手は変形して合わせる）
+let cup=CUPFIT.load(); setCup(CUPFIT.geometry(cup));
+const ghost=new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({color:0xf2efe8,transparent:true,opacity:0.32,roughness:0.9,depthWrite:false,side:THREE.DoubleSide}));
+ghost.rotation.x=Math.PI/2; ghost.visible=P.ghost; root.add(ghost);
+function drawGhost(){ ghost.geometry.dispose(); ghost.geometry=new THREE.LatheGeometry(CUPFIT.cupProfile(cup).map(([r,z])=>new THREE.Vector2(r,z)),96); }
+drawGhost();
+function syncCupUI(){
+  const g=CUPFIT.geometry(cup), maxW=Math.floor(CIRC-2*CUP.STRIP);
+  $('panelWidth').max=maxW; if(P.panelWidth>maxW){ P.panelWidth=maxW; $('panelWidth').value=maxW; $('o_panelWidth').textContent=fmt.panelWidth(maxW); }
+  ctl.target.z=0; ctl.target.y=(g.Z0+g.Z1)/2;
+  $('fitnote').textContent=`ホルダーは立てた向きのまま印刷できます。内径は紙コップ（${CUPFIT.label(cup)}）に合わせて ${g.CL.toFixed(2)} mm のすき間を取ってあります。`;
+}
 let shellMesh=null, handleMesh=null, handleData=null;
 function decode(h){ const v=new Float32Array(Uint8Array.from(atob(h.v),c=>c.charCodeAt(0)).buffer), f=new Uint32Array(Uint8Array.from(atob(h.f),c=>c.charCodeAt(0)).buffer); return {v,f}; }
-function setHandle(){ handleData=decode(HANDLES[P.handle]); if(handleMesh){root.remove(handleMesh); handleMesh.geometry.dispose();}
+function setHandle(){ const raw=decode(HANDLES[P.handle]); handleData={v:CUPFIT.warp(raw.v,cup,'h'),f:raw.f}; if(handleMesh){root.remove(handleMesh); handleMesh.geometry.dispose();}
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(handleData.v,3)); g.setIndex(new THREE.BufferAttribute(handleData.f,1)); g.computeVertexNormals();
   handleMesh=new THREE.Mesh(g,mat); root.add(handleMesh); }
-setHandle();
+setHandle(); syncCupUI();
+CUPFIT.mountUI($('cupfit'), c=>{ cup=c; setCup(CUPFIT.geometry(cup)); drawGhost(); setHandle(); syncCupUI(); schedule(); });
 function resize(){ const w=host.clientWidth,h=host.clientHeight; renderer.setSize(w,h); cam.aspect=w/h; const d=w/h<1?310:240; cam.position.setLength(d); cam.position.add(new THREE.Vector3(0,0,0)); cam.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(host); resize();
 (function loop(){ ctl.update(); renderer.render(scene,cam); requestAnimationFrame(loop); })();
@@ -291,7 +320,7 @@ function rebuild(){
   const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(m.pos,3)); geo.setIndex(new THREE.BufferAttribute(m.idx,1));
   geo.computeVertexNormals(); shellMesh=new THREE.Mesh(geo,mat); root.add(shellMesh);
   drawMap(g,win,r);
-  const vol=(meshVolume(m.pos,m.idx)+ (HANDLES[P.handle].vol*1000))/1000;
+  const vol=(meshVolume(m.pos,m.idx)+meshVolume(handleData.v,handleData.f))/1000;
   $('s_vol').textContent=vol.toFixed(1); $('s_g').textContent=(vol*1.24).toFixed(0);
   $('s_open').textContent=(p.mode==='relief'?0:Math.round(r.stats.open*100))+'%';
   $('s_br').textContent=r.stats.bridges??0; $('s_tri').textContent=(m.idx.length/3/1000).toFixed(0)+'k';
@@ -331,7 +360,7 @@ $('export').onclick=async()=>{
     note='結合エンジンを読み込めなかったため、本体と持ち手を重ねたまま書き出しました（スライサーで自動的に一体化されます）。';
   }
   let zmin=1e9; for(let i=2;i<pos.length;i+=3) zmin=Math.min(zmin,pos[i]);
-  const stl=new Uint8Array(toSTL(pos,idx,zmin)); const name=`cup_holder_${P.mode}_${Date.now().toString(36)}`;
+  const stl=new Uint8Array(toSTL(pos,idx,zmin)); const name=`cup_holder_${P.mode}${CUPFIT.fileTag(cup)}_${Date.now().toString(36)}`;
   const zip=fflate.zipSync({[name+'.stl']:stl},{level:6});
   const dl=(window.claude?.use ? await window.claude.use('downloads') : null)||__localDL;
   if(!dl){ msg.textContent='この表示ではファイルを保存できません。claude.ai でこのページを開いてください。'; return; }

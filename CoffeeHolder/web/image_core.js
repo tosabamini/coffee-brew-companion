@@ -1,8 +1,15 @@
 // ===== cup-holder geometry core (pure functions, no DOM) =====
 const CUP = { R0: 25.17, K: 0.1065, CL: 0.35, Z0: 14.0, Z1: 64.0, ZA: 18.4, ZB: 60.5, STRIP: 8.0 };
 const ri = z => CUP.R0 + CUP.K * z + CUP.CL;
-const RAVG = ri((CUP.Z0 + CUP.Z1) / 2) + 1.3;
-const CIRC = 2 * Math.PI * RAVG;
+let RAVG = ri((CUP.Z0 + CUP.Z1) / 2) + 1.3;
+let CIRC = 2 * Math.PI * RAVG;
+// 紙コップのサイズを変える（g = CUPFIT.geometry(cup)：R0, K, CL, Z0, Z1）。
+// 上下の帯（ZA/ZB）は基準と同じ幅を保つ。
+function setCup(g) {
+  Object.assign(CUP, { R0: g.R0, K: g.K, CL: g.CL, Z0: g.Z0, Z1: g.Z1, ZA: g.Z0 + 4.4, ZB: g.Z1 - 3.5 });
+  RAVG = ri((CUP.Z0 + CUP.Z1) / 2) + 1.3;
+  CIRC = 2 * Math.PI * RAVG;
+}
 
 // grid: N columns around (wraps), M rows up. cell (j,i)
 function makeGrid(cell) {
@@ -249,4 +256,4 @@ function toSTL(pos, idx, zshift) {
   }
   return buf;
 }
-if (typeof module !== 'undefined') module.exports = { CUP, ri, CIRC, makeGrid, windowMask, sampleImage, process, buildMesh, meshVolume, toSTL };
+if (typeof module !== 'undefined') module.exports = { CUP, ri, setCup, getCirc: () => CIRC, makeGrid, windowMask, sampleImage, process, buildMesh, meshVolume, toSTL };
