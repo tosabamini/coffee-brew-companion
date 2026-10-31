@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'features/flavor_wheel/screens/flavor_wheel_screen.dart';
+import 'features/flavor_wheel/screens/flavor_wheel_tab.dart';
 import 'features/scale/screens/bean_inventory_screen.dart';
 import 'features/scale/screens/main_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
@@ -24,7 +24,7 @@ class _AppShellState extends State<AppShell> {
   static const _tabs = <Widget>[
     MainScreen(),
     BeanInventoryScreen(),
-    FlavorWheelScreen(),
+    FlavorWheelTab(),
     SettingsScreen(),
   ];
 

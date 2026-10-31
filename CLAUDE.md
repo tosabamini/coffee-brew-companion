@@ -95,6 +95,7 @@ MainScreen に「豆量計測」ボタンがあり、タレ後に豆をのせて
 - 豆タブ = `BeanInventoryScreen`（AppBarの「豆情報を登録」から `SaveSessionScreen(points: [])` へ）
 - 設定タブ = `lib/features/settings/screens/settings_screen.dart`（今はレシピ管理への入口のみ）
 - タブのルート画面では `Navigator.pop(context)` を呼ばないこと（AppShellごと閉じる）。保存後にpopする画面（SaveSessionScreen, RecipeSettingsScreen）はpushで開く
+- フレーバータブ = `FlavorWheelTab`（`flavor_wheel/screens/flavor_wheel_tab.dart`）。`FlavorWheelPrefs.useLegacy` で新デザイン `FlavorWheelV2Screen`（サンバースト、タップで拡大、`widgets/flavor_sunburst.dart`）と旧デザイン `FlavorWheelScreen`（変更せず保存）を切り替える。設定タブのスイッチから戻せる。表示設定は `flavor_wheel_prefs.json`、日本語名は `data/flavor_labels_ja.dart`
 - `SessionStorage.recipesRevision`（ValueNotifier）: レシピ保存・選択IDの保存で増え、MainScreenが購読して再読込する
 
 ### MainScreen Layout Policy

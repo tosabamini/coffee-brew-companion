@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../flavor_wheel/services/flavor_wheel_prefs.dart';
 import '../../scale/screens/recipe_settings_screen.dart';
 import '../../scale/services/backup_service.dart';
 
@@ -95,6 +96,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const RecipeSettingsScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _SectionLabel('表示'),
+            Card(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: FlavorWheelPrefs.useLegacy,
+                builder: (_, legacy, __) => SwitchListTile(
+                  secondary: const Icon(Icons.donut_large,
+                      color: BrewColors.caramel),
+                  title: const Text('旧デザインのフレーバーホイールを使う'),
+                  subtitle: const Text('新しいホイールが使いにくいときは、ここで以前の表示に戻せます（データは共通）'),
+                  value: legacy,
+                  onChanged: FlavorWheelPrefs.setUseLegacy,
                 ),
               ),
             ),
