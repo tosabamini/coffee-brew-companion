@@ -1,0 +1,21 @@
+{
+  "um_per_px": 27.84,
+  "grind": {
+    "threshold": 0.6,
+    "min_short_px": 8,
+    "max_ecd_um": 4000,
+    "fine_um": 400,
+    "boulder_um": 1400,
+    "shell_um": 100,
+    "split_touching": true,
+    "exclude_chaff": true,
+    "use_blank": true
+  },
+  "roast": {
+    "sample_roi": null,
+    "ref_roi": null,
+    "ref_target": 200
+  },
+  "um_per_px_zoom1": 24.15,
+  "um_per_px_zoom1_note": "2026-10-31 トレイの上の10円玉（dial10_35, ズーム1.48）で測定。写真の .json のズームで割って使う"
+}

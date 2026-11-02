@@ -1,0 +1,21 @@
+name: coffee_lab_app
+description: "Coffee Lab：挽き目・焙煎度の撮影（PCへ送信）と、背景ライト"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.12.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
