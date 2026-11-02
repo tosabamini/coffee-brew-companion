@@ -17,7 +17,7 @@ import numpy as np
 
 WEB = ROOT / 'web'
 N_BODY = 166   # 0 = plain, 1-124 patterns, 125-154 coffee, 155-164 caffeine, 165 events
-N_HAND = 130   # 1-115 shapes, 116-125 coffee, 126-130 caffeine
+N_HAND = 133   # 1-115 shapes, 116-125 coffee, 126-130 caffeine, 131-133 events
 PATTERN_CATS = [(1,8,'幾何・タイル'),(9,16,'フラクタル・再帰'),(17,23,'曲線・波'),(24,38,'シミュレーション・情報'),(39,52,'世界と日本の文様'),
                 (53,60,'テキスタイル・美術様式'),(61,72,'世界の建築'),(73,74,'オプ・アート'),(75,89,'自然・生き物'),(90,100,'タイリング・数学'),(101,124,'モチーフ')]
 
@@ -45,8 +45,11 @@ def hand_entry(k):
     if k <= 125:
         import coffee_handles as CH
         fn, jp = list(CH.CH.values())[k-116]; return fn, jp, 'コーヒー'
-    import caf_handles as CF
-    fn, jp = list(CF.CH2.values())[k-126]; return fn, jp, 'カフェイン'
+    if k <= 130:
+        import caf_handles as CF
+        fn, jp = list(CF.CH2.values())[k-126]; return fn, jp, 'カフェイン'
+    import event_handles as EV
+    fn, jp = list(EV.EH.values())[k-131]; return fn, jp, 'イベント記念'
 
 # ---------------------------------------------------------------- geometry
 def build_body(k):
@@ -117,7 +120,7 @@ def assemble():
     hands = [dict(i=k, jp=hand_entry(k)[1], c=hand_entry(k)[2], v=vols.get(f'h{k}', 0)) for k in range(1, N_HAND+1)]
     # display order: plain, coffee, caffeine, then the rest
     order_b = [0] + list(range(165, N_BODY)) + list(range(125, 155)) + list(range(155, 165)) + list(range(1, 125))
-    order_h = list(range(116, 126)) + list(range(126, 131)) + list(range(1, 116))
+    order_h = list(range(131, N_HAND+1)) + list(range(116, 126)) + list(range(126, 131)) + list(range(1, 116))
     B = {d['i']: d for d in bodies}; Hd = {d['i']: d for d in hands}
     data = dict(b=[B[i] for i in order_b], h=[Hd[i] for i in order_h])
     out = DIST/'組み合わせ'; (out/'parts').mkdir(parents=True, exist_ok=True)
