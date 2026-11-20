@@ -10,7 +10,10 @@ import '../data/preset_recipes.dart';
 import '../models/brew_recipe.dart';
 import '../models/coffee_session.dart';
 import '../models/weight_point.dart';
+import '../../settings/services/app_prefs.dart';
 import '../services/ble_scale_service.dart';
+import '../services/live_brew.dart';
+import '../services/pip_service.dart';
 import '../services/session_storage.dart';
 import '../widgets/weight_graph.dart';
 import 'history_screen.dart';
@@ -73,7 +76,26 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _loadRecipes();
     SessionStorage.recipesRevision.addListener(_onRecipesChanged);
+    AppPrefs.miniWindow.addListener(_syncPip);
     _bindBleStreams();
+  }
+
+  /// スケールとつながっている間だけ、アプリを離れたら小窓（グラフだけ）にする
+  void _syncPip() {
+    PipService.setAutoEnter(AppPrefs.miniWindow.value && (_isConnected || _isMeasuring));
+  }
+
+  /// 小窓の表示用に、いまの抽出の様子を渡す
+  void _publishLive() {
+    LiveBrew.instance.update(
+      points: _points,
+      recipe: _effectiveRecipe(),
+      ghostPoints: _ghostPointsForGraph(),
+      weightG: _displayWeightG,
+      elapsed: _elapsedText(),
+      measuring: _isMeasuring,
+      connected: _isConnected,
+    );
   }
 
   /// 設定タブなど別の画面でレシピが保存されたら読み直す
@@ -116,6 +138,7 @@ class _MainScreenState extends State<MainScreen> {
 
       if (mounted) {
         setState(() {});
+        _publishLive();
       }
     });
 
@@ -129,6 +152,8 @@ class _MainScreenState extends State<MainScreen> {
             _autoBaselineWindow.clear();
           }
         });
+        _syncPip();
+        _publishLive();
       }
     });
 
@@ -147,6 +172,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     SessionStorage.recipesRevision.removeListener(_onRecipesChanged);
+    AppPrefs.miniWindow.removeListener(_syncPip);
+    PipService.setAutoEnter(false);
     _timerTick?.cancel();
     _weightSub?.cancel();
     _connectionSub?.cancel();
@@ -182,6 +209,54 @@ class _MainScreenState extends State<MainScreen> {
       _currentBeanQuantityG = recipe?.beanQuantityG;
     });
     await SessionStorage.saveCurrentRecipeId(recipe?.id);
+  }
+
+  /// ゴーストの豆量（記録した豆量。なければそのときのレシピの豆量）
+  double? _ghostDoseG() {
+    final g = _ghostSession;
+    if (g == null) return null;
+    return g.doseG ?? g.recipe?.beanQuantityG;
+  }
+
+  /// 今回の豆量（豆量計測・レシピから）
+  double? _currentDoseG() => _currentBeanQuantityG ?? _currentRecipe?.beanQuantityG;
+
+  /// ゴーストを今回の豆量に合わせる倍率。どちらかの豆量が分からなければ 1（そのまま）
+  double _ghostScale() {
+    final gd = _ghostDoseG();
+    final cd = _currentDoseG();
+    if (gd == null || cd == null || gd <= 0 || cd <= 0) return 1.0;
+    return cd / gd;
+  }
+
+  List<WeightPoint>? _scaledGhostPoints;
+  String? _scaledGhostKey;
+
+  /// グラフに重ねるゴースト。重さだけを豆量の比で換算する（時間はそのまま）。
+  /// 例：16g で淹れた記録を 18g の参考にするときは 18/16 倍
+  List<WeightPoint>? _ghostPointsForGraph() {
+    final g = _ghostSession;
+    if (g == null || g.points.isEmpty) return null;
+    final k = _ghostScale();
+    final key = '${g.id}:${k.toStringAsFixed(4)}';
+    if (_scaledGhostKey != key) {
+      _scaledGhostKey = key;
+      _scaledGhostPoints = (k - 1.0).abs() < 1e-6
+          ? g.points
+          : g.points
+              .map((p) => WeightPoint(elapsedMs: p.elapsedMs, weightG: p.weightG * k))
+              .toList();
+    }
+    return _scaledGhostPoints;
+  }
+
+  /// 凡例の文字。換算しているときは「ゴースト 16→18g」
+  String _ghostLegend() {
+    final gd = _ghostDoseG();
+    final cd = _currentDoseG();
+    if (gd == null || cd == null || (_ghostScale() - 1.0).abs() < 1e-6) return 'ゴースト';
+    String f(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+    return 'ゴースト ${f(gd)}→${f(cd)}g';
   }
 
   BrewRecipe? _effectiveRecipe() {
@@ -431,64 +506,6 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  /// 直近約1秒間の重量変化から流量（g/s）を求める。計測中のみ
-  double? _currentFlowRate() {
-    if (!_isMeasuring || _points.length < 2) return null;
-    final lastMs = _points.last.elapsedMs;
-    WeightPoint ref = _points[_points.length - 2];
-    for (int i = _points.length - 2; i >= 0; i--) {
-      ref = _points[i];
-      if (lastMs - _points[i].elapsedMs >= 1000) break;
-    }
-    final dtSec = (lastMs - ref.elapsedMs) / 1000.0;
-    if (dtSec < 0.3) return null;
-    final flow = (_points.last.weightG - ref.weightG) / dtSec;
-    return flow < 0 ? 0 : flow;
-  }
-
-  /// レシピの目標注湯曲線上の、経過時間 elapsedMs 時点の目標累計重量。
-  /// 各ステップの目標量へ「次のステップ開始まで」に到達する想定で線形補間する
-  double? _recipeTargetAt(BrewRecipe recipe, int elapsedMs) {
-    final steps = [...recipe.steps]
-      ..sort((a, b) => a.startSec.compareTo(b.startSec));
-    if (steps.isEmpty) return null;
-
-    final times = <double>[steps.first.startSec.toDouble()];
-    final weights = <double>[0];
-    for (int i = 0; i < steps.length; i++) {
-      final endSec = i + 1 < steps.length
-          ? steps[i + 1].startSec.toDouble()
-          : (recipe.targetEndSec?.toDouble() ?? steps[i].startSec + 30.0);
-      times.add(endSec);
-      weights.add(steps[i].targetTotalG);
-    }
-
-    final t = elapsedMs / 1000.0;
-    if (t <= times.first) return weights.first;
-    for (int i = 1; i < times.length; i++) {
-      if (t <= times[i]) {
-        final span = times[i] - times[i - 1];
-        if (span <= 0) return weights[i];
-        final ratio = (t - times[i - 1]) / span;
-        return weights[i - 1] + (weights[i] - weights[i - 1]) * ratio;
-      }
-    }
-    return weights.last;
-  }
-
-  /// レシピとの差分（+なら先行、-なら遅れ）。計測中かつレシピありのみ
-  double? _paceDiff(BrewRecipe? recipe) {
-    if (!_isMeasuring ||
-        recipe == null ||
-        recipe.isEmpty ||
-        _points.isEmpty) {
-      return null;
-    }
-    final target = _recipeTargetAt(recipe, _points.last.elapsedMs);
-    if (target == null) return null;
-    return _points.last.weightG - target;
-  }
-
   /// ゴースト表示する過去セッションを選ぶボトムシート
   Future<void> _pickGhostSession() async {
     final sessions = await SessionStorage.loadSessions();
@@ -545,6 +562,7 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                         subtitle: Text(
                           '${session.createdAt.year}/${session.createdAt.month.toString().padLeft(2, '0')}/${session.createdAt.day.toString().padLeft(2, '0')}'
+                          '${(session.doseG ?? session.recipe?.beanQuantityG) == null ? '' : ' | 豆 ${(session.doseG ?? session.recipe!.beanQuantityG)!.toStringAsFixed(1)} g'}'
                           ' | ${session.maxWeight.toStringAsFixed(1)} g',
                           style: AppTheme.mono(
                               fontSize: 11,
@@ -992,7 +1010,6 @@ class _MainScreenState extends State<MainScreen> {
   // --- ヒーローカード（重量 + 時間 + 抽出メトリクス） ---
   Widget _buildHeroCard(BrewRecipe? recipe) {
     final targetG = (recipe != null && !recipe.isEmpty) ? recipe.maxTargetWeight : null;
-    final nextStep = _nextStepText(recipe);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOut,
@@ -1075,7 +1092,6 @@ class _MainScreenState extends State<MainScreen> {
                     },
                   ),
                 ),
-                // 抽出中に一番知りたい「次に何gまで注ぐか」をここに出す
                 if (_isMeasuringBeans)
                   Text(
                     '豆をスケールに載せてください',
@@ -1083,16 +1099,7 @@ class _MainScreenState extends State<MainScreen> {
                           color: BrewColors.sage,
                         ),
                   )
-                else if (nextStep != null)
-                  Text(
-                    '次: $nextStep',
-                    style: AppTheme.mono(
-                      fontSize: 11.5,
-                      color: BrewColors.amber,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                else if (targetG != null)
+                else if (targetG != null && !_isMeasuring)
                   Text(
                     'target ${targetG.toStringAsFixed(0)} g',
                     style: AppTheme.mono(
@@ -1145,104 +1152,8 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-          const SizedBox(height: 12),
-          Container(
-            height: 1,
-            color: BrewColors.creamText.withValues(alpha: 0.1),
-          ),
-          const SizedBox(height: 9),
-          _buildHeroStatsRow(recipe),
         ],
       ),
-    );
-  }
-
-  /// 抽出中、次に到達すべき注湯ステップの目安（例: "0:45 までに 120g"）
-  String? _nextStepText(BrewRecipe? recipe) {
-    if (recipe == null || recipe.isEmpty || !_isMeasuring || _points.isEmpty) {
-      return null;
-    }
-    final elapsedSec = _points.last.elapsedMs / 1000.0;
-    final steps = [...recipe.steps]
-      ..sort((a, b) => a.startSec.compareTo(b.startSec));
-    for (int i = 0; i < steps.length; i++) {
-      final endSec = i + 1 < steps.length
-          ? steps[i + 1].startSec
-          : (recipe.targetEndSec ?? steps[i].startSec + 30);
-      if (elapsedSec < endSec) {
-        return '${_formatSec(endSec)} までに ${steps[i].targetTotalG.toStringAsFixed(0)}g';
-      }
-    }
-    return null;
-  }
-
-  // --- ヒーローカード下段: 流量 / ペース / レシオ ---
-  Widget _buildHeroStatsRow(BrewRecipe? recipe) {
-    final flow = _currentFlowRate();
-    final pace = _paceDiff(recipe);
-
-    final dose = _currentBeanQuantityG;
-    final water = _isMeasuring
-        ? _displayWeightG
-        : (_points.isNotEmpty ? _points.last.weightG : _displayWeightG);
-    double? ratio;
-    if (dose != null && dose > 0 && water > 0.5) {
-      ratio = water / dose;
-    }
-
-    String paceText = '—';
-    Color paceColor = BrewColors.creamTextDim;
-    if (pace != null) {
-      if (pace.abs() <= 2.0) {
-        paceText = 'ON PACE';
-        paceColor = BrewColors.sage;
-      } else if (pace > 0) {
-        paceText = '+${pace.toStringAsFixed(1)}g 先行';
-        paceColor = BrewColors.amber;
-      } else {
-        paceText = '${pace.toStringAsFixed(1)}g 遅れ';
-        paceColor = BrewColors.steam;
-      }
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: _heroStat(
-              'FLOW', flow == null ? '—' : '${flow.toStringAsFixed(1)} g/s'),
-        ),
-        Expanded(
-          child: _heroStat('PACE', paceText, valueColor: paceColor),
-        ),
-        Expanded(
-          child: _heroStat(
-              'RATIO', ratio == null ? '—' : '1:${ratio.toStringAsFixed(1)}'),
-        ),
-      ],
-    );
-  }
-
-  Widget _heroStat(String label, String value, {Color? valueColor}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label,
-            style:
-                AppTheme.overline(color: BrewColors.creamTextDim, fontSize: 9)),
-        const SizedBox(height: 3),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            style: AppTheme.mono(
-              fontSize: 15,
-              color: valueColor ?? BrewColors.creamText,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1443,7 +1354,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
                 if (_ghostSession != null) ...[
                   _legendDot(
-                      BrewColors.mocha.withValues(alpha: 0.5), 'ゴースト'),
+                      BrewColors.mocha.withValues(alpha: 0.5), _ghostLegend()),
                   const SizedBox(width: 2),
                 ],
                 IconButton(
@@ -1477,7 +1388,7 @@ class _MainScreenState extends State<MainScreen> {
               child: WeightGraph(
                 points: _points,
                 recipe: recipe,
-                ghostPoints: _ghostSession?.points,
+                ghostPoints: _ghostPointsForGraph(),
               ),
             ),
           ],

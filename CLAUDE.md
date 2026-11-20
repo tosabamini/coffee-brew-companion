@@ -45,7 +45,9 @@ ESP32 (HX711 → BLE GATT notify every ~210ms)
 |------|------|
 | `lib/features/scale/services/ble_scale_service.dart` | BLE scanning, connection, weight parsing into streams |
 | `lib/features/scale/services/session_storage.dart` | JSON persistence: sessions, multiple recipes, current recipe ID |
-| `lib/features/scale/services/claude_vision_service.dart` | Claude Vision API (Haiku) でパッケージ写真から豆情報を抽出 |
+| `lib/features/shared/services/claude_api.dart` | Claude API の共通窓口（`ClaudeApi.model` = `claude-sonnet-5-5`。写真読み取り・フレーバー分類・AIチャットで共通） |
+| `lib/features/scale/services/claude_vision_service.dart` | パッケージ写真から豆情報を抽出（ClaudeApi 経由） |
+| `lib/features/shared/widgets/ai_chat_screen.dart` | AIチャット画面（共通）。返事の ```[tag] {JSON}``` を反映ボタンにする |
 | `lib/features/scale/screens/main_screen.dart` | Orchestrates BLE state, measurement, recipe selection, bean measurement |
 | `lib/features/scale/widgets/weight_graph.dart` | Custom `CustomPainter` real-time graph (no charting library) |
 | `lib/features/scale/models/coffee_session.dart` | Main domain model with all brew metadata + weight points |
@@ -106,17 +108,17 @@ MainScreen に「豆量計測」ボタンがあり、タレ後に豆をのせて
 - システムバー色は `SystemChrome.setSystemUIOverlayStyle` で管理（main.dart / splash_screen.dart）
 - ランチャーアイコンは `assets/icon/*.png` を `flutter_launcher_icons`（Androidのみ）で反映
 
-### Live Brew Metrics (MainScreen)
+### Live Brew (MainScreen)
 
-- **流量 (FLOW)**: 直近約1秒の重量差分から g/s を算出しヒーローカード下段に表示
-- **ペースガイド (PACE)**: `_recipeTargetAt()` がレシピステップを線形補間（各ステップ目標量へ「次ステップ開始まで」に到達する想定）。±2g以内は ON PACE
-- **レシオ (RATIO)**: `_currentBeanQuantityG` と現在重量から 1:N を表示
+- 抽出中の FLOW / PACE / RATIO、「0:45 までに 120g」、「○g 先行」の表示は 2026-11 にユーザーの希望で撤去（グラフを見れば分かるため）。ヒーローカードは重さと時間だけ
 - **自動スタート**: 「自動」トグルでワンショット武装。直近6サンプルの最小値から **+2.0g** 増加で計測開始（スケールノイズ±0.5g対策の閾値）。`_isMeasuringBeans` 中は判定停止、発動・切断で自動解除
-- **ゴースト表示**: グラフヘッダーのレイヤーアイコンから過去セッションを選び、曲線を半透明で重ねる
+- **ゴースト表示**: グラフヘッダーのレイヤーアイコンから過去セッションを選び、曲線を半透明で重ねる。重さは「今回の豆量 ÷ ゴーストの豆量（doseG → なければレシピの豆量）」倍に換算（時間はそのまま）。凡例は「ゴースト 16→18g」
+- **小窓表示（PiP）**: スケール接続中はアプリを離れると Android のピクチャーインピクチャーで重さ・時間・グラフだけを表示。`PipService`（`brew/pip` チャンネル、MainActivity.kt）・`LiveBrew`（MainScreen が更新）・`MiniBrewView`（main.dart の `MaterialApp.builder` で IndexedStack 切替。元の画面は残す）。設定タブ `AppPrefs.miniWindow`（app_prefs.json）で無効化できる
 
 ### Rating / Repeat / Pour Cues / Backup
 
-- `CoffeeSession.rating`（1〜3: いまいち/好き/とても好き, nullable）と `isFavorite`（後方互換）。入力UIは `widgets/rating_row.dart`。保存画面（計測時のみ）と詳細画面（即保存）。履歴は★でお気に入り絞り込み
+- `CoffeeSession.rating`（1〜3: いまいち/好き/とても好き, nullable）と `isFavorite`（後方互換）。入力UIは `widgets/rating_row.dart`。**詳細画面だけ**（即保存）。保存画面は抽出直後でまだ飲んでいないので評価を置かない。履歴は★でお気に入り絞り込み
+- `CoffeeSession.notes` は**豆のメモ**（`SessionStorage.loadBeanPresets` の豆の見分けキーに含まれる）。1杯ごとのメモは `brewNotes`（キーに含めない）。ドリッパーは `dripper`（`data/drippers.dart` の一覧＋自由入力、`widgets/dripper_field.dart`）。「この条件でもう一度」ではドリッパーを引き継ぐ
 - 「この条件でもう一度」: 詳細画面 → `Navigator.pop(session)` → 履歴も pop で中継 → MainScreen `_applyTemplate`（レシピ・豆量・ゴーストをセット）。次の `SaveSessionScreen(template:)` で豆情報を初期入力（1回限り）
 - 注湯合図: `MainScreen._checkPourCues()`（重量ストリーム受信ごとに判定）。各ステップ開始3秒前と開始時に `HapticFeedback` + `SystemSound.click`。端末のタッチ振動/操作音設定に依存
 - バックアップ: `services/backup_service.dart`。保存フォルダ直下の .json/.txt を丸ごと1ファイルに（share_plus で共有）、復元は `file_picker` で選んで上書き。設定タブから
@@ -127,10 +129,16 @@ MainScreen に「豆量計測」ボタンがあり、タレ後に豆をのせて
 - 保存画面・詳細画面に豆量/TDS入力欄あり。dose初期値は豆量計測値 or レシピ豆量
 - CSV: 履歴画面=全セッションサマリ、詳細画面=重量点データ。UTF-8 BOM付きでExcel対応
 
+### AI (Claude API, Sonnet 5.5)
+
+- モデルは `ClaudeApi.model`（`claude-sonnet-5-5`）で一括管理。`api_config.dart` の `visionModel` は使っていない
+- フレーバー: `flavor_wheel/services/flavor_ai.dart` の `FlavorAi.suggest` が新しいフレーバーの大分類・中分類を提案（ホイールの追加シート・未分類の「分類する」で自動、保存画面の自由入力ダイアログはボタン）。ユーザー追加の項目は長押しで「移動 / 削除」。ホイール右上から AI チャット（```flavor_add で追加提案）と「よく使うフレーバー」（`my_flavors_screen.dart`、記録に出たフレーバーだけを大分類ごとに頻度で文字サイズを変えて表示）
+- 詳細画面: 「AIに相談」で記録（豆・レシピ・5秒ごとの重さ・メモ・評価）を渡してチャット。```recipe の提案は `BrewAi.saveRecipeFromJson` でマイレシピに保存
+
 ### Package Scan Feature (Vision API)
 
 - `ClaudeVisionService.analyzeCoffeePackage(File)` → `CoffeePackageInfo`
-- Claude Haiku (`claude-haiku-4-5`) を使用
+- Claude Sonnet 5.5（`ClaudeApi.model`）を使用
 - SaveSessionScreen の「パッケージ写真から自動入力」ボタンから起動
 - APIキーは `lib/config/api_config.dart` に設定（`.gitignore` 対象）
 - テンプレート: `lib/config/api_config.dart.example`

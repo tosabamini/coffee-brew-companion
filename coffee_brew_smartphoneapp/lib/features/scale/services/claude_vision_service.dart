@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:http/http.dart' as http;
-
-import '../../../config/api_config.dart';
+import '../../shared/services/claude_api.dart';
 
 /// パッケージ写真から読み取ったコーヒー豆情報
 class CoffeePackageInfo {
@@ -30,15 +28,10 @@ class CoffeePackageInfo {
   });
 }
 
+/// パッケージ写真の読み取り（モデルは ClaudeApi.model ＝ Sonnet 5.5）
 class ClaudeVisionService {
-  static const String _apiUrl = 'https://api.anthropic.com/v1/messages';
-
   /// コーヒーパッケージ画像を解析して豆情報を返す
   static Future<CoffeePackageInfo> analyzeCoffeePackage(File imageFile) async {
-    if (ApiConfig.claudeApiKey == 'YOUR_API_KEY_HERE') {
-      throw Exception('APIキーが設定されていません。lib/config/api_config.dart を開いて設定してください。');
-    }
-
     final bytes = await imageFile.readAsBytes();
     final base64Image = base64Encode(bytes);
     final ext = imageFile.path.split('.').last.toLowerCase();
@@ -62,55 +55,33 @@ class ClaudeVisionService {
 }
 ''';
 
-    final response = await http
-        .post(
-          Uri.parse(_apiUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': ApiConfig.claudeApiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: jsonEncode({
-            'model': ApiConfig.visionModel,
-            'max_tokens': 1024,
-            'messages': [
-              {
-                'role': 'user',
-                'content': [
-                  {
-                    'type': 'image',
-                    'source': {
-                      'type': 'base64',
-                      'media_type': mediaType,
-                      'data': base64Image,
-                    },
-                  },
-                  {
-                    'type': 'text',
-                    'text': prompt,
-                  },
-                ],
+    final text = await ClaudeApi.send(
+      messages: [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'image',
+              'source': {
+                'type': 'base64',
+                'media_type': mediaType,
+                'data': base64Image,
               },
-            ],
-          }),
-        )
-        .timeout(const Duration(seconds: 30));
+            },
+            {
+              'type': 'text',
+              'text': prompt,
+            },
+          ],
+        },
+      ],
+      maxTokens: 1024,
+    );
 
-    if (response.statusCode != 200) {
-      final body = jsonDecode(response.body);
-      final message = body['error']?['message'] ?? response.body;
-      throw Exception('APIエラー (${response.statusCode}): $message');
-    }
-
-    final responseJson = jsonDecode(response.body);
-    final text = responseJson['content'][0]['text'] as String;
-
-    final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(text);
-    if (jsonMatch == null) {
+    final data = ClaudeApi.extractJson(text);
+    if (data == null) {
       throw Exception('レスポンスからJSON情報を取得できませんでした。');
     }
-
-    final data = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
 
     return CoffeePackageInfo(
       beanName: _str(data['beanName']),

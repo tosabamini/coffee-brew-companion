@@ -33,6 +33,9 @@ class CsvExportService {
       'maxWeightG',
       'durationSec',
       'recipeName',
+      'dripper',
+      'rating',
+      'brewNotes',
       'notes',
     ].map(_escape).join(','));
 
@@ -58,6 +61,9 @@ class CsvExportService {
         s.maxWeight.toStringAsFixed(1),
         s.durationSec.toStringAsFixed(1),
         s.recipe?.name ?? '',
+        s.dripper ?? '',
+        s.rating?.toString() ?? '',
+        s.brewNotes ?? '',
         s.notes ?? '',
       ].map(_escape).join(','));
     }

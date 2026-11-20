@@ -10,7 +10,7 @@ import '../models/coffee_session.dart';
 import '../models/weight_point.dart';
 import '../services/claude_vision_service.dart';
 import '../services/session_storage.dart';
-import '../widgets/rating_row.dart';
+import '../widgets/dripper_field.dart';
 import '../widgets/weight_graph.dart';
 
 class SaveSessionScreen extends StatefulWidget {
@@ -113,6 +113,7 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
   final _grindSizeController = TextEditingController();
   final _elevationController = TextEditingController();
   final _notesController = TextEditingController();
+  final _brewNotesController = TextEditingController();
   final _doseController = TextEditingController();
   final _tdsController = TextEditingController();
 
@@ -123,8 +124,8 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
 
   List<FlavorNoteTag> _selectedFlavorNotes = [];
 
-  int? _rating;
-  bool _isFavorite = false;
+  /// 使ったドリッパー（任意）。評価は飲んだあとに詳細画面で付けるので、ここでは扱わない
+  String? _dripper;
 
   bool _isSaving = false;
   bool _isScanning = false;
@@ -146,6 +147,7 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
     }
     final t = widget.template;
     if (t != null) {
+      _dripper = t.dripper; // 器具は前回と同じことが多いので引き継ぐ
       // 前回の豆情報を引き継ぐ（メモ・TDS・評価は1杯ごとのものなので引き継がない）
       _fillBeanFields(
         beanName: t.beanName,
@@ -228,6 +230,7 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
     _grindSizeController.dispose();
     _elevationController.dispose();
     _notesController.dispose();
+    _brewNotesController.dispose();
     _doseController.dispose();
     _tdsController.dispose();
     super.dispose();
@@ -463,12 +466,14 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
+      brewNotes: _brewNotesController.text.trim().isEmpty
+          ? null
+          : _brewNotesController.text.trim(),
+      dripper: _dripper,
       doseG: doseValue,
       tdsPercent: tdsValue,
       recipe: widget.recipe?.copy(),
       points: widget.points,
-      rating: _rating,
-      isFavorite: _isFavorite,
     );
 
     await SessionStorage.addSession(session);
@@ -684,6 +689,22 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
                       const SizedBox(height: 8),
                       _buildBrewMetricsPreview(finalWeight),
                       const SizedBox(height: 16),
+                      DripperField(
+                        value: _dripper,
+                        onChanged: (v) => _dripper = v,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _brewNotesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: '今回の抽出メモ（任意）',
+                          helperText: '注ぎ方・気づいたことなど。豆の情報とは別に保存されます',
+                          helperMaxLines: 2,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                     ],
 
                     if (_beanPresets.isNotEmpty) ...[
@@ -877,7 +898,9 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
                       controller: _notesController,
                       maxLines: 3,
                       decoration: const InputDecoration(
-                        labelText: 'Notes',
+                        labelText: '豆のメモ（Notes）',
+                        helperText: '豆そのものについて。内容が違うと別の豆として登録されます',
+                        helperMaxLines: 2,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -886,32 +909,6 @@ class _SaveSessionScreenState extends State<SaveSessionScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            // この一杯の評価（任意）
-            if (!_isStandalone) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'この一杯の評価（任意）',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 6),
-                      RatingFavoriteRow(
-                        rating: _rating,
-                        isFavorite: _isFavorite,
-                        onRatingChanged: (v) => setState(() => _rating = v),
-                        onFavoriteChanged: (v) =>
-                            setState(() => _isFavorite = v),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
             Wrap(
               spacing: 12,
               runSpacing: 12,

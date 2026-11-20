@@ -151,9 +151,13 @@ if ($hits.Count -ne 1) {
     Say "api_config.dart の中に claudeApiKey の行が $($hits.Count) か所あります（1か所のはず）。安全のため書き換えません。" Red
     exit 1
 }
-$model = 'claude-haiku-4-5'
-$mm = [regex]::Match($cfgNow.Text, "visionModel[ \t]*=[ \t]*'([A-Za-z0-9._\-]+)'")
-if ($mm.Success) { $model = $mm.Groups[1].Value }
+# アプリが使うモデル（lib/features/shared/services/claude_api.dart の model）で確かめる
+$model = 'claude-sonnet-5-5'
+$apiDart = Join-Path $Root 'coffee_brew_smartphoneapp\lib\features\shared\services\claude_api.dart'
+if (Test-Path -LiteralPath $apiDart) {
+    $mm = [regex]::Match((Get-Content -LiteralPath $apiDart -Raw -Encoding UTF8), "String model[ \t]*=[ \t]*'([A-Za-z0-9._\-]+)'")
+    if ($mm.Success) { $model = $mm.Groups[1].Value }
+}
 
 $done = $false
 $changed = $false

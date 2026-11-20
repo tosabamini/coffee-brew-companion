@@ -6,10 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../shared/widgets/ai_chat_screen.dart';
 import '../models/brew_recipe.dart';
 import '../models/coffee_session.dart';
+import '../services/brew_ai.dart';
 import '../services/csv_export_service.dart';
 import '../services/session_storage.dart';
+import '../widgets/dripper_field.dart';
 import '../widgets/rating_row.dart';
 import '../widgets/weight_graph.dart';
 
@@ -40,6 +43,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   final _flavorNoteController = TextEditingController();
   final _elevationController = TextEditingController();
   final _notesController = TextEditingController();
+  final _brewNotesController = TextEditingController();
+  String? _dripper;
   final _doseController = TextEditingController();
   final _tdsController = TextEditingController();
 
@@ -63,6 +68,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     _flavorNoteController.dispose();
     _elevationController.dispose();
     _notesController.dispose();
+    _brewNotesController.dispose();
     _doseController.dispose();
     _tdsController.dispose();
     super.dispose();
@@ -84,6 +90,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       _elevationController.text =
       session.elevationM == null ? '' : session.elevationM!.toStringAsFixed(0);
       _notesController.text = session.notes ?? '';
+      _brewNotesController.text = session.brewNotes ?? '';
+      _dripper = session.dripper;
       _doseController.text =
           session.doseG == null ? '' : session.doseG!.toStringAsFixed(1);
       _tdsController.text =
@@ -140,6 +148,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           : _flavorNoteController.text.trim()
       ..elevationM = elevationValue
       ..notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim()
+      ..brewNotes = _brewNotesController.text.trim().isEmpty
+          ? null
+          : _brewNotesController.text.trim()
+      ..dripper = _dripper
       ..doseG = doseValue
       ..tdsPercent = tdsValue;
 
@@ -204,6 +216,30 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         });
       }
     }
+  }
+
+  /// この抽出について AI と相談する（このプロファイルをもとにレシピを作る、など）
+  void _openAiChat(CoffeeSession session) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AiChatScreen(
+          title: 'この抽出をAIに相談',
+          intro: 'この抽出の記録（豆・レシピ・重さの推移・メモ・評価）を見ています。'
+              '「このプロファイルが良かったから、これをもとにレシピを作って」のように話しかけてください。'
+              'レシピの提案には保存ボタンが付きます。',
+          suggestions: const [
+            'このプロファイルをもとにレシピを作って',
+            '次はもう少し甘さを出したい。どう変える？',
+            'この注ぎ方の特徴を教えて',
+          ],
+          systemPrompt: BrewAi.systemPrompt(session),
+          actionTag: 'recipe',
+          actionLabel: 'マイレシピに保存',
+          onAction: (json) => BrewAi.saveRecipeFromJson(json, session),
+        ),
+      ),
+    );
   }
 
   Future<void> _exportCsv(CoffeeSession session) async {
@@ -292,8 +328,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   'Ratio: ${session.brewRatio == null ? "-" : "1:${session.brewRatio!.toStringAsFixed(1)}"}'),
               Text(
                   'TDS: ${session.tdsPercent == null ? "-" : "${session.tdsPercent} %"} / EY: ${session.extractionYieldPercent == null ? "-" : "${session.extractionYieldPercent!.toStringAsFixed(1)} %"}'),
+              Text('Dripper: ${session.dripper ?? "-"}'),
               const SizedBox(height: 8),
-              Text('Notes: ${session.notes ?? "-"}'),
+              Text('Brew notes: ${session.brewNotes ?? "-"}'),
+              Text('Bean notes: ${session.notes ?? "-"}'),
               const SizedBox(height: 16),
               const Text(
                 'Recipe',
@@ -342,6 +380,11 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       appBar: AppBar(
         title: const Text('Session Detail'),
         actions: [
+          IconButton(
+            onPressed: () => _openAiChat(session),
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'AIに相談',
+          ),
           IconButton(
             onPressed: _isExporting ? null : _exportAsImage,
             icon: const Icon(Icons.image),
@@ -393,10 +436,21 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                           },
                         ),
                         const SizedBox(height: 8),
-                        FilledButton.tonalIcon(
-                          onPressed: () => Navigator.pop(context, session),
-                          icon: const Icon(Icons.replay),
-                          label: const Text('この条件でもう一度'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            FilledButton.tonalIcon(
+                              onPressed: () => Navigator.pop(context, session),
+                              icon: const Icon(Icons.replay),
+                              label: const Text('この条件でもう一度'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _openAiChat(session),
+                              icon: const Icon(Icons.auto_awesome),
+                              label: const Text('AIに相談・レシピを作る'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -471,6 +525,22 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 12),
+                        DripperField(
+                          value: _dripper,
+                          onChanged: (v) => _dripper = v,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _brewNotesController,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: '今回の抽出メモ',
+                            helperText: '注ぎ方・味の感想など。豆の情報とは別に保存されます',
+                            helperMaxLines: 2,
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
@@ -551,7 +621,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                           controller: _notesController,
                           maxLines: 4,
                           decoration: const InputDecoration(
-                            labelText: 'Notes',
+                            labelText: '豆のメモ（Notes）',
+                            helperText: '豆そのものについて。内容が違うと別の豆として登録されます',
+                            helperMaxLines: 2,
                             border: OutlineInputBorder(),
                           ),
                         ),

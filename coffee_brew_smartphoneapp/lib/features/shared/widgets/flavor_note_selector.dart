@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../flavor_wheel/models/flavor_category.dart';
+import '../../flavor_wheel/services/flavor_ai.dart';
 import '../../flavor_wheel/services/flavor_storage.dart';
 import '../models/flavor_note_tag.dart';
+import '../services/claude_api.dart';
 
 /// Bean Info 画面に埋め込む複数選択フレーバーノート入力ウィジェット。
 /// 選択済みタグをチップ表示し、ボタンでピッカーを開く。
@@ -148,7 +150,8 @@ class _FlavorPickerSheetState extends State<_FlavorPickerSheet> {
   }
 
   Future<void> _showAddCustomDialog() async {
-    final result = await showDialog<({String name, String? categoryId})>(
+    final result = await showDialog<
+        ({String name, String? categoryId, String? subId, String? newSubName})>(
       context: context,
       builder: (_) => _AddCustomFlavorDialog(categories: _categories),
     );
@@ -165,7 +168,6 @@ class _FlavorPickerSheetState extends State<_FlavorPickerSheet> {
       tagColor = cat.color;
       catName = cat.name;
 
-      // "Custom" サブカテゴリに追加（なければ作成）
       final newItem = FlavorItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: name,
@@ -173,6 +175,24 @@ class _FlavorPickerSheetState extends State<_FlavorPickerSheet> {
       );
       final updatedCats = _categories.map((c) {
         if (c.id != categoryId) return c;
+        // AI が中分類まで決めたときはそこへ（新しい中分類ならそれを作る）
+        if (result.subId != null && c.subCategories.any((s) => s.id == result.subId)) {
+          return c.copyWith(
+            subCategories: c.subCategories
+                .map((s) => s.id == result.subId ? s.copyWith(items: [...s.items, newItem]) : s)
+                .toList(),
+          );
+        }
+        if (result.newSubName != null && result.newSubName!.isNotEmpty) {
+          return c.copyWith(subCategories: [
+            ...c.subCategories,
+            FlavorSubCategory(
+                id: '${DateTime.now().millisecondsSinceEpoch}_sub',
+                name: result.newSubName!,
+                items: [newItem]),
+          ]);
+        }
+        // それ以外は "Custom" サブカテゴリに追加（なければ作成）
         final customIdx = c.subCategories.indexWhere((s) => s.id == '__custom__');
         if (customIdx >= 0) {
           final subs = List<FlavorSubCategory>.from(c.subCategories);
@@ -375,6 +395,38 @@ class _AddCustomFlavorDialog extends StatefulWidget {
 class _AddCustomFlavorDialogState extends State<_AddCustomFlavorDialog> {
   final _nameCtrl = TextEditingController();
   String? _selectedCategoryId;
+  String? _aiSubId;
+  String? _aiNewSub;
+  String? _aiNote;
+  bool _aiBusy = false;
+
+  /// AI に大分類・中分類を決めてもらう（大分類は下で選び直せる）
+  Future<void> _askAi() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty || _aiBusy) return;
+    setState(() {
+      _aiBusy = true;
+      _aiNote = null;
+    });
+    try {
+      final p = await FlavorAi.suggest(name, widget.categories);
+      if (!mounted) return;
+      final cat = widget.categories.firstWhere((c) => c.id == p.categoryId);
+      final subName = p.subId == null
+          ? '新しい中分類「${p.newSubName ?? ''}」'
+          : cat.subCategories.firstWhere((x) => x.id == p.subId).name;
+      setState(() {
+        _selectedCategoryId = p.categoryId;
+        _aiSubId = p.subId;
+        _aiNewSub = p.newSubName;
+        _aiNote = 'AIの提案：${cat.name} › $subName${p.reason.isEmpty ? '' : '（${p.reason}）'}';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _aiNote = 'AIに聞けませんでした：$e');
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -396,8 +448,27 @@ class _AddCustomFlavorDialogState extends State<_AddCustomFlavorDialog> {
               labelText: 'Flavor Name',
               border: OutlineInputBorder(),
             ),
+            onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: (_aiBusy || _nameCtrl.text.trim().isEmpty || !ClaudeApi.hasKey)
+                  ? null
+                  : _askAi,
+              icon: _aiBusy
+                  ? const SizedBox(
+                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.auto_awesome, size: 18),
+              label: Text(_aiBusy ? 'AIが考えています…' : 'AIに分類してもらう'),
+            ),
+          ),
+          if (_aiNote != null) ...[
+            Text(_aiNote!, style: const TextStyle(fontSize: 12, height: 1.4)),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedCategoryId,
             decoration: const InputDecoration(
@@ -411,7 +482,12 @@ class _AddCustomFlavorDialogState extends State<_AddCustomFlavorDialog> {
                 (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
               ),
             ],
-            onChanged: (v) => setState(() => _selectedCategoryId = v),
+            onChanged: (v) => setState(() {
+              _selectedCategoryId = v;
+              // 大分類を選び直したら、AI の中分類の提案は使わない
+              _aiSubId = null;
+              _aiNewSub = null;
+            }),
           ),
         ],
       ),
@@ -424,8 +500,12 @@ class _AddCustomFlavorDialogState extends State<_AddCustomFlavorDialog> {
           onPressed: () {
             final name = _nameCtrl.text.trim();
             if (name.isEmpty) return;
-            Navigator.pop(
-                context, (name: name, categoryId: _selectedCategoryId));
+            Navigator.pop(context, (
+              name: name,
+              categoryId: _selectedCategoryId,
+              subId: _aiSubId,
+              newSubName: _aiNewSub,
+            ));
           },
           child: const Text('Add'),
         ),

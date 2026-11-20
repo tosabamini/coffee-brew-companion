@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../shared/services/claude_api.dart';
+import '../../shared/widgets/ai_chat_screen.dart';
 import '../data/flavor_labels_ja.dart';
 import '../models/flavor_category.dart';
+import '../services/flavor_ai.dart';
 import '../services/flavor_storage.dart';
 import '../services/flavor_wheel_prefs.dart';
 import '../widgets/flavor_sunburst.dart';
+import 'my_flavors_screen.dart';
 
 /// フレーバーホイール（新デザイン）。
 ///
@@ -132,9 +136,10 @@ class _FlavorWheelV2ScreenState extends State<FlavorWheelV2Screen>
     String? subId,
     String? newSubName,
     required String name,
+    FlavorItem? existing, // 移動のときは元の項目（id を保つ）
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final item = FlavorItem(id: '${now}_item', name: name, isUserAdded: true);
+    final item = existing ?? FlavorItem(id: '${now}_item', name: name, isUserAdded: true);
     final updated = _categories.map((cat) {
       if (cat.id != categoryId) return cat;
       if (subId == null) {
@@ -153,6 +158,130 @@ class _FlavorWheelV2ScreenState extends State<FlavorWheelV2Screen>
     _categories = updated;
     await FlavorStorage.saveCategories(updated);
     _rebuildNodes();
+  }
+
+  /// 自分で追加したフレーバーを長押ししたとき：移動か削除を選ぶ
+  Future<void> _itemActions(SunburstNode n) async {
+    final v = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: BrewColors.foam,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(n.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text('${n.category.name} › ${n.sub?.name ?? ''}'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outline, color: BrewColors.caramel),
+              title: const Text('別の分類へ移動'),
+              onTap: () => Navigator.pop(ctx, 'move'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: BrewColors.terracotta),
+              title: const Text('削除'),
+              onTap: () => Navigator.pop(ctx, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (v == 'move') await _moveItem(n);
+    if (v == 'delete') await _deleteItem(n);
+  }
+
+  /// 項目を今の場所から取り除いた分類の一覧
+  List<FlavorCategory> _withoutItem(SunburstNode n) {
+    final item = n.item!;
+    return _categories.map((cat) {
+      if (cat.id != n.category.id) return cat;
+      return cat.copyWith(
+        subCategories: cat.subCategories
+            .map((s) => s.id == n.sub!.id
+                ? s.copyWith(items: s.items.where((i) => i.id != item.id).toList())
+                : s)
+            .toList(),
+      );
+    }).toList();
+  }
+
+  /// 自分で追加したフレーバーを別の大分類・中分類へ動かす（AI の分類が違ったときなど）
+  Future<void> _moveItem(SunburstNode n) async {
+    final item = n.item;
+    if (item == null || !item.isUserAdded) return;
+    final result = await showModalBottomSheet<_AddResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BrewColors.foam,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _AddFlavorSheet(
+        categories: _categories,
+        japanese: _ja,
+        initialCategoryId: n.category.id,
+        initialSubId: n.sub?.id,
+        presetName: item.name,
+        moveMode: true,
+      ),
+    );
+    if (result == null) return;
+    _categories = _withoutItem(n);
+    await _addFlavor(
+      categoryId: result.categoryId,
+      subId: result.subId,
+      newSubName: result.newSubName,
+      name: result.name,
+      existing: FlavorItem(id: item.id, name: result.name, isUserAdded: true),
+    );
+  }
+
+  /// AI と相談：フレーバーの意味や分類、追加の提案
+  void _openChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AiChatScreen(
+          title: 'フレーバーの相談',
+          intro: 'フレーバーの意味や、どの分類に入るか、似ている言葉などを聞いてください。ホイールに追加したほうがよいものは提案します（ボタンで追加できます）。',
+          suggestions: const ['「白桃」と「ピーチ」の違いは？', '紅茶っぽい感じはどこに入る？', 'ナチュラル精製でよく出るフレーバーは？'],
+          systemPrompt: '''あなたはコーヒーのフレーバー（香味表現）に詳しいアシスタントです。日本語で、短く分かりやすく答えてください。
+ユーザーのフレーバーホイール（SCA の分類をもとにしたもの）は次のとおりです。
+${FlavorAi.describeWheel(_categories)}
+ホイールにフレーバーを追加することを提案するときだけ、答えの最後に次の形のブロックを付けてください（JSON の中身は既存の id を使う。ふさわしい中分類がなければ subId を null にして newSubName を英語で）:
+```flavor_add
+{"items": [{"name": "フレーバー名", "categoryId": "大分類の id", "subId": "中分類の id か null", "newSubName": "新しい中分類名 か null"}]}
+```''',
+          actionTag: 'flavor_add',
+          actionLabel: 'ホイールに追加する',
+          onAction: _applyChatAdds,
+        ),
+      ),
+    );
+  }
+
+  Future<String> _applyChatAdds(Map<String, dynamic> json) async {
+    final items = (json['items'] as List?) ?? const [];
+    var added = 0;
+    for (final raw in items) {
+      if (raw is! Map) continue;
+      final name = raw['name']?.toString().trim() ?? '';
+      final catId = raw['categoryId']?.toString();
+      final cats = _categories.where((c) => c.id == catId).toList();
+      if (name.isEmpty || cats.isEmpty) continue;
+      final subId = raw['subId']?.toString();
+      final hasSub = cats.first.subCategories.any((s) => s.id == subId);
+      final newSub = raw['newSubName']?.toString().trim();
+      await _addFlavor(
+        categoryId: cats.first.id,
+        subId: hasSub ? subId : null,
+        newSubName: hasSub ? null : ((newSub == null || newSub.isEmpty) ? 'Other' : newSub),
+        name: name,
+      );
+      added++;
+    }
+    if (added == 0) throw Exception('追加できる項目がありませんでした');
+    return '$added 件をホイールに追加しました';
   }
 
   Future<void> _deleteItem(SunburstNode n) async {
@@ -175,17 +304,7 @@ class _FlavorWheelV2ScreenState extends State<FlavorWheelV2Screen>
       ),
     );
     if (ok != true) return;
-    final updated = _categories.map((cat) {
-      if (cat.id != n.category.id) return cat;
-      return cat.copyWith(
-        subCategories: cat.subCategories
-            .map((s) => s.id == n.sub!.id
-                ? s.copyWith(
-                    items: s.items.where((i) => i.id != item.id).toList())
-                : s)
-            .toList(),
-      );
-    }).toList();
+    final updated = _withoutItem(n);
     _categories = updated;
     await FlavorStorage.saveCategories(updated);
     _rebuildNodes();
@@ -233,6 +352,19 @@ class _FlavorWheelV2ScreenState extends State<FlavorWheelV2Screen>
         title: Text('フレーバーホイール',
             style: AppTheme.display(fontSize: 22, color: BrewColors.espresso)),
         actions: [
+          IconButton(
+            tooltip: 'よく使うフレーバー',
+            icon: const Icon(Icons.bubble_chart_outlined, color: BrewColors.caramel),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => MyFlavorsScreen(categories: _categories)),
+            ),
+          ),
+          IconButton(
+            tooltip: 'AIに相談',
+            icon: const Icon(Icons.auto_awesome, color: BrewColors.caramel),
+            onPressed: _openChat,
+          ),
           TextButton(
             onPressed: () => FlavorWheelPrefs.setJapaneseLabels(!_ja),
             child: Text(_ja ? 'EN' : '日本語',
@@ -479,7 +611,7 @@ class _FlavorWheelV2ScreenState extends State<FlavorWheelV2Screen>
     final selected = n.key == _selectedKey;
     final userAdded = n.item?.isUserAdded ?? false;
     return GestureDetector(
-      onLongPress: userAdded ? () => _deleteItem(n) : null,
+      onLongPress: userAdded ? () => _itemActions(n) : null,
       child: ChoiceChip(
         selected: selected,
         onSelected: (_) =>
@@ -525,12 +657,16 @@ class _AddFlavorSheet extends StatefulWidget {
   final String? initialSubId;
   final String? presetName;
 
+  /// 追加済みのフレーバーを動かすとき（AI は自動では呼ばない）
+  final bool moveMode;
+
   const _AddFlavorSheet({
     required this.categories,
     required this.japanese,
     this.initialCategoryId,
     this.initialSubId,
     this.presetName,
+    this.moveMode = false,
   });
 
   @override
@@ -544,12 +680,51 @@ class _AddFlavorSheetState extends State<_AddFlavorSheet> {
   final _newSubName = TextEditingController();
   String? _catId;
   String? _subId;
+  bool _aiBusy = false;
+  String? _aiNote;
 
   @override
   void initState() {
     super.initState();
     _catId = widget.initialCategoryId;
     _subId = widget.initialSubId;
+    // 未分類のフレーバーを分類するときは、開いたらすぐ AI に置き場所を聞く
+    if (widget.presetName != null && !widget.moveMode && ClaudeApi.hasKey) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _askAi());
+    }
+  }
+
+  /// AI に置き場所を提案してもらい、大分類・中分類を選んだ状態にする（選び直せる）
+  Future<void> _askAi() async {
+    final name = _name.text.trim();
+    if (name.isEmpty || _aiBusy) return;
+    setState(() {
+      _aiBusy = true;
+      _aiNote = null;
+    });
+    try {
+      final p = await FlavorAi.suggest(name, widget.categories);
+      if (!mounted) return;
+      final cat = widget.categories.firstWhere((c) => c.id == p.categoryId);
+      String where = _label(cat.id, cat.name);
+      setState(() {
+        _catId = p.categoryId;
+        if (p.subId != null) {
+          _subId = p.subId;
+          final sub = cat.subCategories.firstWhere((x) => x.id == p.subId);
+          where += ' › ${_label(sub.id, sub.name)}';
+        } else {
+          _subId = _newSub;
+          _newSubName.text = p.newSubName ?? '';
+          where += ' › 新しい中分類「${p.newSubName ?? ''}」';
+        }
+        _aiNote = 'AIの提案：$where${p.reason.isEmpty ? '' : '（${p.reason}）'}\n違うと思ったら、下で選び直してください。';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _aiNote = 'AIに聞けませんでした：$e');
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
   }
 
   @override
@@ -611,7 +786,10 @@ class _AddFlavorSheetState extends State<_AddFlavorSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Text(widget.presetName == null ? 'フレーバーを追加' : '分類する',
+            Text(
+                widget.moveMode
+                    ? '移動する'
+                    : (widget.presetName == null ? 'フレーバーを追加' : '分類する'),
                 style: AppTheme.display(fontSize: 20)),
             const SizedBox(height: 12),
             TextField(
@@ -624,7 +802,33 @@ class _AddFlavorSheetState extends State<_AddFlavorSheet> {
               ),
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: (_aiBusy || _name.text.trim().isEmpty || !ClaudeApi.hasKey)
+                      ? null
+                      : _askAi,
+                  icon: _aiBusy
+                      ? const SizedBox(
+                          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.auto_awesome, size: 18),
+                  label: Text(_aiBusy ? 'AIが考えています…' : 'AIに分類してもらう'),
+                ),
+              ],
+            ),
+            if (_aiNote != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: BrewColors.oat.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(_aiNote!,
+                    style: const TextStyle(fontSize: 13, height: 1.4, color: BrewColors.espresso)),
+              ),
+            const SizedBox(height: 12),
             Text('大分類', style: AppTheme.overline()),
             const SizedBox(height: 6),
             Wrap(
@@ -692,7 +896,9 @@ class _AddFlavorSheetState extends State<_AddFlavorSheet> {
                 style: FilledButton.styleFrom(
                     backgroundColor: BrewColors.caramel,
                     padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: Text(widget.presetName == null ? '追加する' : '分類する'),
+                child: Text(widget.moveMode
+                    ? '移動する'
+                    : (widget.presetName == null ? '追加する' : '分類する')),
               ),
             ),
           ],

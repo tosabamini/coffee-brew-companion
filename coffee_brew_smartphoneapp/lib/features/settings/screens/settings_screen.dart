@@ -7,6 +7,7 @@ import '../../../theme/app_theme.dart';
 import '../../flavor_wheel/services/flavor_wheel_prefs.dart';
 import '../../scale/screens/recipe_settings_screen.dart';
 import '../../scale/services/backup_service.dart';
+import '../services/app_prefs.dart';
 
 /// 全体設定（レシピ管理、データのバックアップ・復元）
 class SettingsScreen extends StatefulWidget {
@@ -101,6 +102,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
             const _SectionLabel('表示'),
+            Card(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: AppPrefs.miniWindow,
+                builder: (_, on, __) => SwitchListTile(
+                  secondary: const Icon(Icons.picture_in_picture_alt_outlined,
+                      color: BrewColors.caramel),
+                  title: const Text('アプリを離れたらグラフを小窓で表示'),
+                  subtitle: const Text('スケールとつながっている間、YouTube などほかのアプリを使っていても、抽出のグラフが小さな窓で見えます'),
+                  value: on,
+                  onChanged: AppPrefs.setMiniWindow,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Card(
               child: ValueListenableBuilder<bool>(
                 valueListenable: FlavorWheelPrefs.useLegacy,

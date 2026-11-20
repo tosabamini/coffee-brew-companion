@@ -15,7 +15,15 @@ class CoffeeSession {
   String? grindSize;
   String? flavorNote;
   double? elevationM;
+
+  /// 豆についてのメモ（豆の情報の一部。保存済みの豆の見分けにも使う）
   String? notes;
+
+  /// この1杯の抽出についてのメモ（豆のメモとは別。豆の見分けには使わない）
+  String? brewNotes;
+
+  /// 使ったドリッパー（任意）
+  String? dripper;
 
   /// 使用した豆量（ドース, g）
   double? doseG;
@@ -49,6 +57,8 @@ class CoffeeSession {
     this.flavorNote,
     this.elevationM,
     this.notes,
+    this.brewNotes,
+    this.dripper,
     this.doseG,
     this.tdsPercent,
     this.recipe,
@@ -124,6 +134,8 @@ class CoffeeSession {
       'flavorNote': flavorNote,
       'elevationM': elevationM,
       'notes': notes,
+      'brewNotes': brewNotes,
+      'dripper': dripper,
       'doseG': doseG,
       'tdsPercent': tdsPercent,
       'recipe': recipe?.toJson(),
@@ -148,6 +160,8 @@ class CoffeeSession {
       flavorNote: json['flavorNote'] as String?,
       elevationM: (json['elevationM'] as num?)?.toDouble(),
       notes: json['notes'] as String?,
+      brewNotes: json['brewNotes'] as String?,
+      dripper: json['dripper'] as String?,
       doseG: (json['doseG'] as num?)?.toDouble(),
       tdsPercent: (json['tdsPercent'] as num?)?.toDouble(),
       recipe: json['recipe'] == null
