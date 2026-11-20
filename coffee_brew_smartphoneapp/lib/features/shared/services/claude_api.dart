@@ -49,7 +49,12 @@ class ClaudeApi {
 
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     if (response.statusCode != 200) {
-      final message = (decoded is Map ? decoded['error']?['message'] : null) ?? response.statusCode;
+      Object? message;
+      if (decoded is Map) {
+        final err = decoded['error'];
+        if (err is Map) message = err['message'];
+      }
+      message ??= response.statusCode;
       throw Exception('AIの呼び出しに失敗しました（${response.statusCode}）: $message');
     }
     final content = (decoded['content'] as List?) ?? const [];
